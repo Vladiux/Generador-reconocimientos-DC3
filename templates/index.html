@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador de Certificados AGASI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo-area">
+                <span class="logo-icon">🎓</span>
+                <div>
+                    <h1>Generador de Certificados</h1>
+                    <p class="subtitle">AGASI — Capacitación y Servicios Industriales</p>
+                </div>
+            </div>
+            <div class="status-badge" id="statusBadge">Listo</div>
+        </header>
+
+        <!-- Step 1: Subir Excel -->
+        <section class="step" id="step1">
+            <div class="step-header">
+                <span class="step-number">1</span>
+                <h2>Sube tu lista de participantes</h2>
+            </div>
+            <div class="step-body">
+                <!-- Botones de descarga de plantilla vacía -->
+                <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;margin-bottom:12px">
+                    <p style="font-size:13px;font-weight:600;color:#1a4786;margin:0 0 6px 0">📋 ¿No tienes la lista? Descarga una plantilla vacía:</p>
+                    <div style="display:flex;flex-wrap:wrap;gap:6px">
+                        <button class="btn btn-ghost btn-sm" onclick="descargarPlantilla('dc3')">📋 DC-3</button>
+                        <button class="btn btn-ghost btn-sm" onclick="descargarPlantilla('reconocimiento')">📜 Reconocimiento</button>
+                        <button class="btn btn-ghost btn-sm" onclick="descargarPlantilla('constancia')">📄 Constancia</button>
+                    </div>
+                </div>
+                <div class="dropzone" id="dropzone">
+                    <div class="dropzone-inner">
+                        <span class="dropzone-icon">📄</span>
+                        <p class="dropzone-text">Arrastra tu Excel aquí<br>o <strong>haz click para seleccionar</strong></p>
+                        <p class="dropzone-hint">Formatos: .xlsx, .csv</p>
+                    </div>
+                    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" hidden>
+                </div>
+                <div class="upload-result" id="uploadResult" style="display:none">
+                    <div class="result-card">
+                        <span class="result-icon">✅</span>
+                        <div>
+                            <p class="result-title" id="fileName">archivo.xlsx</p>
+                            <p class="result-detail"><span id="rowCount">0</span> participantes encontrados</p>
+                        </div>
+                        <button class="btn btn-ghost" id="btnChangeFile">Cambiar</button>
+                    </div>
+                    <!-- Vista previa de datos -->
+                    <div class="data-preview" id="dataPreview" style="display:none; margin-top:12px">
+                        <button class="btn btn-ghost" id="btnTogglePreview" onclick="toggleDataPreview()">
+                            👁️ Ver datos cargados
+                        </button>
+                        <div id="previewTableArea" style="display:none; margin-top:8px; max-height:380px; overflow:auto; border:1px solid #e2e8f0; border-radius:6px">
+                            <table class="preview-table" id="previewTable">
+                                <thead id="previewHead"></thead>
+                                <tbody id="previewBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Step 2: Elegir plantilla -->
+        <section class="step" id="step2" style="display:none">
+            <div class="step-header">
+                <span class="step-number">2</span>
+                <h2>Elige la plantilla</h2>
+            </div>
+            <div class="step-body">
+                <!-- Categorías principales -->
+                <div class="template-grid" id="templateGrid">
+                    <!-- Generado por JS -->
+                </div>
+                <!-- Sub-opciones (para categorías con variantes) -->
+                <div id="subTemplateArea" style="display:none; margin-top:12px">
+                    <button class="btn btn-ghost btn-sm" id="btnBackCategory" onclick="backToCategories()" style="margin-bottom:8px">← Volver</button>
+                    <h3 id="subCategoryTitle" style="font-size:16px;margin-bottom:8px"></h3>
+                    <div class="template-grid" id="subTemplateGrid"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Step 3: Mapear columnas (colapsable) -->
+        <section class="step" id="step3" style="display:none">
+            <div class="step-header">
+                <span class="step-number">3</span>
+                <h2>Mapea las columnas</h2>
+                <span class="badge badge-auto" id="mappingBadge">✔ Mapeo automático</span>
+                <button class="btn btn-ghost btn-sm" id="btnToggleMapping" onclick="toggleMapping()" style="margin-left:auto">
+                    Ajustar mapeo ▾
+                </button>
+            </div>
+            <div class="step-body" id="mappingBody" style="display:none">
+                <p class="step-hint">Conecta cada campo del certificado con la columna correcta de tu Excel. Si no hay columna coincidente, selecciónala manualmente.</p>
+                <div class="mapping-table" id="mappingTable">
+                    <!-- Se llena con JS -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Preview Modal -->
+        <div class="modal" id="previewModal" style="display:none">
+            <div class="modal-overlay" onclick="closePreview()"></div>
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Vista previa del certificado</h3>
+                    <button class="btn btn-ghost" onclick="closePreview()">✕</button>
+                </div>
+                <div class="modal-body">
+                    <div class="preview-loading" id="previewLoading">Generando vista previa...</div>
+                    <iframe id="previewFrame" style="display:none; width:100%; height:70vh; border:1px solid #ddd; border-radius:8px;"></iframe>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 4: Generar -->
+        <section class="step" id="step4" style="display:none">
+            <div class="step-header">
+                <span class="step-number">4</span>
+                <h2>Generar certificados</h2>
+            </div>
+            <div class="step-body">
+                <div class="generate-summary" id="generateSummary">
+                    <!-- Resumen -->
+                </div>
+                <div class="action-row">
+                    <button class="btn btn-secondary" id="btnPreview">👁️ Vista previa</button>
+                    <button class="btn btn-primary btn-large" id="btnGenerate">⚡ Generar <span id="genCount">0</span> certificados</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Progress -->
+        <section class="step" id="stepProgress" style="display:none">
+            <div class="step-header">
+                <span class="step-number">⚡</span>
+                <h2>Generando...</h2>
+            </div>
+            <div class="step-body">
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill" style="width:0%"></div>
+                    </div>
+                    <p class="progress-text"><span id="progressDone">0</span> / <span id="progressTotal">0</span></p>
+                    <p class="progress-current" id="progressCurrent"></p>
+                    <p class="progress-time" id="progressTime"></p>
+                </div>
+                <div class="progress-actions" id="progressActions" style="display:none">
+                    <button class="btn btn-primary" id="btnDownload">📦 Descargar ZIP</button>
+                    <button class="btn btn-secondary" id="btnOpenFolder">📁 Abrir carpeta</button>
+                    <button class="btn btn-ghost" id="btnRestart">🔄 Generar otro lote</button>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+    <script>
+        // Lista de plantillas disponibles (del backend)
+        const PLANTILLAS = {{ plantillas|tojson }};
+    </script>
+</body>
+</html>

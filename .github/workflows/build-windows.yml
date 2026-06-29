@@ -1,0 +1,142 @@
+name: Build Windows .exe
+
+# ─────────────────────────────────────────────────────────────────
+# Compila GeneradorAGASI.exe en un runner Windows de GitHub.
+#
+# Se dispara de DOS formas:
+#   1. Automático: al hacer push de un tag que empiece con 'v' (ej: v1.0.0)
+#      → Crea un GitHub Release con el .exe adjunto.
+#   2. Manual: desde la pestaña Actions → "Run workflow" (rama main)
+#      → Solo sube el .exe como artifact (NO crea release).
+#
+# Tiempo estimado: 4-7 minutos por build.
+# Artifact expira en 30 días; los Releases son permanentes.
+# ─────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Motivo del build manual (solo para logs)"
+        required: false
+        default: "manual build"
+
+permissions:
+  contents: write  # Necesario para crear Releases al pushear tags
+
+jobs:
+  build-windows:
+    name: Build on windows-latest
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      # ─── Setup ───
+      - name: ⬇️ Checkout del repo
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      # ─── Limpieza preventiva ───
+      # Si commiteaste output/, weasyprint-samples/, etc. por error,
+      # esto evita que PyInstaller los empaquete y rompa el build.
+      - name: 🧹 Limpiar artefactos previos
+        shell: bash
+        run: |
+          echo "Limpiando carpetas que no deben ir en el build..."
+          rm -rf output/ build/ dist/ __pycache__/
+          find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+          find . -name "*.pyc" -delete 2>/dev/null || true
+          echo "Limpieza OK"
+
+      # ─── Dependencias Python ───
+      - name: 📦 Crear venv e instalar dependencias
+        shell: bash
+        run: |
+          python -m venv venv
+          source venv/Scripts/activate
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+          echo "Dependencias instaladas"
+
+      # ─── Chromium para Playwright ───
+      - name: 🎭 Instalar Chromium para Playwright
+        shell: bash
+        run: |
+          source venv/Scripts/activate
+          playwright install chromium
+          echo "Chromium instalado"
+
+      # ─── Build con PyInstaller ───
+      - name: 🔨 Compilar .exe
+        shell: bash
+        run: |
+          source venv/Scripts/activate
+          if [ ! -f "build.spec" ]; then
+            echo "❌ ERROR: no se encontró build.spec en la raíz del repo"
+            exit 1
+          fi
+          pyinstaller build.spec --clean --noconfirm
+          echo "=== Verificación ==="
+          if [ ! -f "dist/GeneradorAGASI.exe" ]; then
+            echo "❌ ERROR: no se generó dist/GeneradorAGASI.exe"
+            exit 1
+          fi
+          ls -la dist/
+          SIZE=$(du -h dist/GeneradorAGASI.exe | cut -f1)
+          echo "✅ Build OK: dist/GeneradorAGASI.exe ($SIZE)"
+
+      # ─── Subir como artifact (siempre, sin importar si es tag o manual) ───
+      - name: 📤 Subir .exe como artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GeneradorAGASI-windows-${{ github.ref_name }}
+          path: dist/GeneradorAGASI.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      # ─── Crear Release (solo si es tag) ───
+      - name: 🚀 Crear GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Generador AGASI ${{ github.ref_name }}"
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          body: |
+            ## Generador de Certificados AGASI — ${{ github.ref_name }}
+
+            Ejecutable standalone de Windows para **Generador de Certificados / Reconocimientos / DC-3 AGASI**.
+
+            ### 📥 Instalación
+            1. Descarga `GeneradorAGASI.exe` (abajo)
+            2. Doble click para ejecutar
+            3. Si Windows SmartScreen pregunta: "Más información" → "Ejecutar de todas formas"
+
+            ### 🚀 Uso
+            - Se abre automáticamente en `http://127.0.0.1:8765`
+            - Sube tu Excel con la lista de participantes
+            - Elige plantilla (DC-3, Reconocimiento o Constancia)
+            - Genera y descarga los PDFs en un ZIP
+
+            ### 📋 Requisitos
+            - Windows 10/11 (64-bit)
+            - ~200 MB de disco (temporal mientras se ejecuta)
+            - Sin dependencias externas: Python, Flask y Chromium van embebidos
+
+            ### 📝 Notas técnicas
+            - Build generado automáticamente con PyInstaller
+            - Basado en el commit del tag `${{ github.ref_name }}`
+            - Ver el [README del proyecto](../blob/${{ github.ref_name }}/README.md) para más detalles
+          files: |
+            dist/GeneradorAGASI.exe
+          fail_on_unmatched_files: true

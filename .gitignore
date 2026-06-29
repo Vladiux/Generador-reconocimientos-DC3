@@ -1,0 +1,39 @@
+# ─── Python ───
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+
+# ─── Build artifacts (se regeneran en cada build) ───
+build/
+dist/
+*.spec.bak
+
+# ─── Outputs de la app (PDFs generados, no deben ir al repo) ───
+output/
+weasyprint-samples/
+
+# ─── OS / Editor ───
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ─── Logs ───
+*.log
+logs/
+
+# ─── Secrets (nunca al repo) ───
+.env
+.env.local
+*.pem
+*.key
+
+# ─── Playwright (binarios descargados localmente) ───
+# Se descargan en CI también, no los commiteamos
+.playwright/

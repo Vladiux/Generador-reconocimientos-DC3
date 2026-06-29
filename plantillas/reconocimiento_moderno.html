@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: A4 landscape; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 297mm; height: 210mm;
+    font-family: 'Arial', 'Helvetica', sans-serif;
+    color: #000; background: #fff;
+    display: flex; flex-direction: column;
+  }
+
+  /* ─── Banda azul superior pegada al tope ─── */
+  .banda-sup {
+    height: 26mm; flex-shrink: 0;
+    background: linear-gradient(135deg, #1a4786 0%, #2563eb 100%);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 15mm;
+    position: relative;
+  }
+  .banda-left {
+    display: flex; flex-direction: column;
+  }
+  .banda-sup .logo-txt {
+    font-size: 16pt; font-weight: bold; color: #fff; letter-spacing: 4px;
+  }
+  .banda-sup .logo-sub {
+    font-size: 7pt; color: rgba(255,255,255,0.85); letter-spacing: 1px;
+    margin-top: 1mm;
+  }
+  .banda-sup .folio-mod {
+    font-size: 8pt; color: rgba(255,255,255,0.7);
+  }
+
+  /* ─── Franja lateral decorativa ─── */
+  .barra-lat {
+    position: absolute; top: 26mm; bottom: 0; left: 0;
+    width: 5mm; background: #2563eb; opacity: 0.12;
+  }
+
+  /* ─── Contenido principal ocupa el resto del espacio ─── */
+  .contenido {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 12mm 20mm 12mm 16mm;
+    text-align: center; gap: 3mm;
+  }
+
+  .titulo-mod {
+    font-size: 30pt; font-weight: bold; color: #1a4786;
+    letter-spacing: 5px; text-transform: uppercase;
+  }
+  .linea-oro {
+    width: 70mm; height: 2px;
+    background: linear-gradient(90deg, transparent, #2563eb, transparent);
+    margin: 1mm auto;
+  }
+  .subtitulo-mod {
+    font-size: 11pt; color: #555; font-style: italic;
+  }
+  .nombre-mod {
+    font-size: 28pt; font-weight: bold; color: #1a1a2e;
+    margin: 2mm 0;
+  }
+  .desc-mod {
+    font-size: 11pt; color: #444; max-width: 70%; line-height: 1.5;
+  }
+  .curso-mod {
+    font-size: 14pt; font-weight: bold; color: #2563eb;
+    margin: 1mm 0;
+  }
+
+  .footer-mod {
+    display: flex; justify-content: space-between;
+    align-items: flex-end; width: 100%;
+    padding: 0 15mm; gap: 15mm; margin-top: 4mm;
+  }
+  .firma { display: flex; flex-direction: column; align-items: center; gap: 1mm; flex: 1; }
+  .firma-img { height: 16mm; object-fit: contain; margin-bottom: 1mm; opacity: 0.9; }
+  .firma-linea { width: 42mm; border-top: 1px solid #333; padding-top: 1mm; }
+  .firma-nombre { font-size: 8pt; font-weight: bold; color: #333; }
+  .firma-puesto { font-size: 7pt; color: #666; }
+</style>
+</head>
+<body>
+  <div class="banda-sup">
+    <div class="banda-left">
+      <div class="logo-txt">AGASI</div>
+      <div class="logo-sub">Asesoría, Gestión Ambiental y Servicios Industriales</div>
+    </div>
+    <div class="folio-mod">Folio: {{folio}}</div>
+  </div>
+
+  <div class="barra-lat"></div>
+
+  <div class="contenido">
+    <div class="titulo-mod">Reconocimiento</div>
+    <div class="linea-oro"></div>
+    <div class="subtitulo-mod">Se otorga a</div>
+    <div class="nombre-mod">{{nombre}}</div>
+    <div class="desc-mod">Por haber concluido satisfactoriamente el curso de capacitación:</div>
+    <div class="curso-mod">{{curso}}</div>
+    <div class="desc-mod">Con una duración de <strong>{{duracion}}</strong> horas<br>Celebrado en {{lugar}} el {{fecha}}</div>
+
+    <div class="footer-mod">
+      <div class="firma">
+        <img class="firma-img" src="firmas/instructor.png" alt="" onerror="this.style.display='none'">
+        <div class="firma-linea"></div>
+        <div class="firma-nombre">{{instructor}}</div>
+        <div class="firma-puesto">Instructor</div>
+      </div>
+      <div class="firma">
+        <img class="firma-img" src="firmas/director.png" alt="" onerror="this.style.display='none'">
+        <div class="firma-linea"></div>
+        <div class="firma-nombre">Ing. Alejandro García Salinas</div>
+        <div class="firma-puesto">Director General</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

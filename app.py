@@ -1,0 +1,827 @@
+#!/usr/bin/env python3
+"""
+Generador de Certificados / Reconocimientos / DC3 — AGASI
+App local: sube Excel, elige plantilla, genera cientos de PDFs en segundos.
+"""
+
+import json
+import os
+import sys
+import tempfile
+import threading
+import time
+import webbrowser
+import zipfile
+from datetime import datetime
+from io import BytesIO
+from pathlib import Path
+
+from flask import (
+    Flask,
+    Response,
+    jsonify,
+    render_template,
+    request,
+    send_file,
+    send_from_directory,
+    stream_with_context,
+)
+from openpyxl import load_workbook
+from playwright.sync_api import sync_playwright
+
+# ─── Config ───
+BASE_DIR = Path(__file__).parent.resolve()
+# Cuando se ejecuta como binario empaquetado por PyInstaller, los recursos
+# (plantillas, static, firmas) se extraen a sys._MEIPASS. Flask debe buscarlos ahí.
+if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+    APP_ROOT = Path(sys._MEIPASS)
+    # cwd o el directorio del ejecutable, para cosas que el usuario escribe
+    # (output, logs) — lo que sí o sí va en el sistema de archivos del usuario
+    RUNTIME_DIR = Path(sys.executable).parent.resolve()
+else:
+    APP_ROOT = BASE_DIR
+    RUNTIME_DIR = BASE_DIR
+
+PORT = 8765
+HOST = "127.0.0.1"
+
+app = Flask(__name__, template_folder=str(APP_ROOT / "templates"), static_folder=str(APP_ROOT / "static"))
+app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50MB max upload
+
+# ─── Estado global del batch (en memoria, no DB) ───
+batch_state = {
+    "status": "idle",  # idle | running | done | error
+    "total": 0,
+    "completed": 0,
+    "current_name": "",
+    "started_at": None,
+    "finished_at": None,
+    "output_dir": "",
+    "error": "",
+}
+
+
+# ─── Rutas principales ───
+
+
+@app.route("/")
+def index():
+    """Página principal — subir Excel, elegir plantilla, mapear, previsualizar."""
+    # Listar plantillas disponibles
+    plantillas_dir = APP_ROOT / "plantillas"
+    plantillas = []
+    if plantillas_dir.exists():
+        for f in sorted(plantillas_dir.glob("*.html")):
+            plantillas.append(f.stem)
+    return render_template("index.html", plantillas=plantillas)
+
+
+@app.route("/api/plantilla/<nombre>")
+def get_plantilla(nombre):
+    """Devuelve el HTML de una plantilla."""
+    path = APP_ROOT / "plantillas" / f"{nombre}.html"
+    if not path.exists():
+        return jsonify({"error": "Plantilla no encontrada"}), 404
+    with open(path, "r", encoding="utf-8") as f:
+        html = f.read()
+    return jsonify({"html": html})
+
+
+# ─── Plantillas Excel por tipo de documento ───
+PLANTILLAS_EXCEL = {
+    "reconocimiento": {
+        "nombre": "Plantilla Reconocimiento",
+        "headers": [
+            "Nombre Completo",  # Apellido paterno, apellido materno, nombre(s)
+            "Curso",
+            "Duracion (hrs)",
+            "Fecha",
+            "Instructor",
+            "Lugar",
+            "Folio",  # Opcional — si va vacío se genera automáticamente
+        ],
+        "ejemplo": [
+            "López Hernández María Fernanda",
+            "Seguridad Industrial y Protección Civil",
+            "40",
+            "15/06/2026",
+            "Ing. Roberto Martínez",
+            "Pachuca, Hidalgo",
+            "",  # Folio en blanco → auto-genera
+        ],
+    },
+    "dc3": {
+        "nombre": "Plantilla DC-3",
+        "headers": [
+            "Nombre",  # Apellido paterno, apellido materno, nombre(s)
+            "CURP",  # 18 caracteres
+            "Ocupacion",  # Catálogo Nacional de Ocupaciones
+            "Puesto",
+            "Empresa (Razón Social)",
+            "RFC (de la Empresa)",  # 12 caracteres - RFC de la empresa, no del participante
+            "Curso",
+            "Duracion",  # Horas
+            "Fecha Inicio",  # dd/mm/aaaa
+            "Fecha Fin",  # dd/mm/aaaa
+            "Area Tematica",  # Código + nombre, ej: "6000 Seguridad"
+            "Instructor",
+            "Folio",  # Opcional — si va vacío se genera automáticamente
+        ],
+        "ejemplo": [
+            "López Hernández María Fernanda",
+            "LOHF900215HGPLRR09",
+            "09.4 Protección",
+            "Supervisor",
+            "Industrias Peoles",
+            "IPE850101AB1",
+            "Seguridad Industrial y Protección Civil",
+            "40",
+            "01/06/2026",
+            "15/06/2026",
+            "6000 Seguridad",
+            "Ing. Roberto Martínez",
+            "",  # Folio en blanco → auto-genera
+        ],
+    },
+    "constancia": {
+        "nombre": "Plantilla Constancia",
+        "headers": [
+            "Nombre Completo",  # Apellido paterno, apellido materno, nombre(s)
+            "Curso",
+            "Duracion (hrs)",
+            "Fecha",
+            "Instructor",
+            "Folio",  # Opcional — si va vacío se genera automáticamente
+        ],
+        "ejemplo": [
+            "Juan Pérez García",
+            "Primeros Auxilios y RCP",
+            "16",
+            "17/06/2026",
+            "Dra. Ana Ruiz",
+            "",  # Folio en blanco → auto-genera
+        ],
+    },
+}
+
+
+@app.route("/api/plantilla-excel/<tipo>")
+def download_plantilla_excel(tipo):
+    """Genera y descarga una plantilla Excel con headers y fila de ejemplo."""
+    from io import BytesIO
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+    from openpyxl.utils import get_column_letter
+
+    if tipo not in PLANTILLAS_EXCEL:
+        return jsonify(
+            {
+                "error": f"Tipo '{tipo}' no válido. Disponibles: {list(PLANTILLAS_EXCEL.keys())}"
+            }
+        ), 404
+
+    info = PLANTILLAS_EXCEL[tipo]
+    wb = Workbook()
+    ws = wb.active
+    ws.title = info["nombre"][:30]
+
+    # Estilos
+    header_font = Font(name="Arial", size=11, bold=True, color="FFFFFF")
+    header_fill = PatternFill("solid", fgColor="1A4786")
+    header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    example_fill = PatternFill("solid", fgColor="F1F5F9")
+    example_font = Font(name="Arial", size=10, color="64748B", italic=True)
+    thin = Side(border_style="thin", color="94A3B8")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    # Fila 1: título del documento
+    ws.merge_cells(
+        start_row=1, start_column=1, end_row=1, end_column=len(info["headers"])
+    )
+    title_cell = ws.cell(row=1, column=1, value=info["nombre"])
+    title_cell.font = Font(name="Arial", size=14, bold=True, color="1A4786")
+    title_cell.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 25
+
+    # Fila 2: instrucciones
+    ws.merge_cells(
+        start_row=2, start_column=1, end_row=2, end_column=len(info["headers"])
+    )
+    instr_text = (
+        "INSTRUCCIONES: Complete los datos de los participantes. "
+        "El campo NOMBRE debe ir como Apellido Paterno + Apellino Materno + Nombre(s) (ej: López Hernández María Fernanda). "
+        "La fila de ejemplo debe borrarse antes de procesar. "
+        "La columna FOLIO es opcional — si la deja vacía, el sistema asigna una automáticamente. "
+        "Para DC-3: CURP debe tener 18 caracteres exactos; "
+        "el RFC es el de la EMPRESA (no del participante), 12 caracteres para Persona Moral; "
+        "Para el campo EMPRESA Escribe la Razón social"
+        "Área Temática escribe CÓDIGO + NOMBRE (ej: 6000 Seguridad)."
+    )
+    instr_cell = ws.cell(row=2, column=1, value=instr_text)
+    instr_cell.font = Font(name="Arial", size=9, italic=True, color="475569")
+    instr_cell.alignment = Alignment(
+        horizontal="left", vertical="center", wrap_text=True
+    )
+    ws.row_dimensions[2].height = 60
+
+    # Fila 3 vacía
+
+    # Fila 4: headers
+    for col_idx, header in enumerate(info["headers"], 1):
+        c = ws.cell(row=4, column=col_idx, value=header)
+        c.font = header_font
+        c.fill = header_fill
+        c.alignment = header_align
+        c.border = border
+    ws.row_dimensions[4].height = 30
+
+    # Fila 5: ejemplo
+    for col_idx, val in enumerate(info["ejemplo"], 1):
+        c = ws.cell(row=5, column=col_idx, value=val)
+        c.font = example_font
+        c.fill = example_fill
+        c.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+        c.border = border
+
+    # Filas vacías para que se vea la estructura
+    for r in range(6, 12):
+        for col_idx in range(1, len(info["headers"]) + 1):
+            c = ws.cell(row=r, column=col_idx, value="")
+            c.border = border
+            c.alignment = Alignment(vertical="center", wrap_text=True)
+
+    # Ajustar anchos de columna según contenido
+    for col_idx, header in enumerate(info["headers"], 1):
+        col_letter = get_column_letter(col_idx)
+        max_len = max(
+            len(str(header)),
+            len(str(info["ejemplo"][col_idx - 1]))
+            if col_idx <= len(info["ejemplo"])
+            else 0,
+            12,
+        )
+        ws.column_dimensions[col_letter].width = min(max(max_len + 2, 14), 40)
+
+    # Congelar panel
+    ws.freeze_panes = "A5"
+
+    # Guardar en memoria
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    filename = f"plantilla_{tipo}.xlsx"
+    return send_file(
+        buf,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=filename,
+    )
+
+
+@app.route("/api/upload", methods=["POST"])
+def upload_excel():
+    """Recibe Excel, extrae filas y devuelve columnas + datos."""
+    if "file" not in request.files:
+        return jsonify({"error": "No se envió archivo"}), 400
+
+    file = request.files["file"]
+    if not file.filename:
+        return jsonify({"error": "Archivo sin nombre"}), 400
+
+    if not file.filename.endswith((".xlsx", ".xls", ".csv")):
+        return jsonify({"error": "Solo Excel (.xlsx) o CSV"}), 400
+
+    # Guardar temporalmente
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix)
+    file.save(tmp.name)
+    tmp.close()
+
+    try:
+        if file.filename.endswith(".csv"):
+            import csv
+
+            with open(tmp.name, "r", encoding="utf-8-sig") as f:
+                reader = csv.reader(f)
+                rows = list(reader)
+            example_row_indices = []
+        else:
+            wb = load_workbook(tmp.name, data_only=True)
+            ws = wb.active
+            rows = [
+                [str(c.value) if c.value is not None else "" for c in row]
+                for row in ws.iter_rows()
+            ]
+
+            # Detectar filas de ejemplo (tienen relleno gris F1F5F9 = RGB(241, 245, 249))
+            example_row_indices = []
+            for row_idx, row in enumerate(ws.iter_rows()):
+                # Solo checar la primera celda con valor
+                if row and row[0].value and row[0].fill and row[0].fill.fgColor:
+                    rgb = row[0].fill.fgColor.rgb
+                    if rgb and "F1F5F9" in str(rgb).upper():
+                        example_row_indices.append(row_idx)
+            wb.close()
+
+        if len(rows) < 2:
+            return jsonify(
+                {
+                    "error": "El Excel necesita una fila de encabezados y al menos 1 fila de datos"
+                }
+            ), 400
+
+        # Detectar automáticamente la fila de encabezados
+        # Detectar automáticamente la fila de encabezados
+        # Busca la primera fila con texto en TODAS las celdas que parezcan nombres de campo
+        # (Nombre, CURP, RFC, Folio, etc.) y que no sea un título o instrucciones
+        palabras_clave = [
+            "nombre",
+            "curp",
+            "rfc",
+            "folio",
+            "curso",
+            "fecha",
+            "duracion",
+            "instructor",
+            "lugar",
+            "empresa",
+            "puesto",
+            "ocupacion",
+            "area",
+        ]
+
+        header_idx = 0
+        for idx, row in enumerate(rows[:10]):  # Buscar solo en las primeras 10 filas
+            row_text = " ".join(str(c).lower() for c in row if c)
+            # Verificar que la fila tenga al menos 2 palabras clave (típico de headers)
+            matches = sum(1 for kw in palabras_clave if kw in row_text)
+            if matches >= 2:
+                # Verificar que NO sea una fila de título/instrucciones (típicamente más cortas)
+                non_empty = [c for c in row if c]
+                if non_empty and all(len(str(c)) < 50 for c in non_empty):
+                    header_idx = idx
+                    break
+
+        headers = rows[header_idx]
+        data_rows = rows[header_idx + 1 :]
+
+        # Filtrar filas de ejemplo (las que tenían relleno gris en el Excel original)
+        if example_row_indices:
+            # Ajustar índices: están basados en ws.iter_rows() (0-indexed en todo el sheet)
+            # Necesitamos ajustar considerando que header_idx es relativo a rows
+            data_rows = [
+                r
+                for idx, r in enumerate(data_rows)
+                if (header_idx + 1 + idx) not in example_row_indices
+            ]
+
+        # Filtrar filas vacías
+        data_rows = [r for r in data_rows if any(str(c).strip() for c in r)]
+
+        return jsonify(
+            {
+                "headers": headers,
+                "rows": data_rows,
+                "total": len(data_rows),
+                "tmp_path": tmp.name,
+                "header_row_index": header_idx,
+            }
+        )
+    except Exception as e:
+        return jsonify({"error": f"Error leyendo Excel: {str(e)}"}), 500
+
+
+@app.route("/api/preview", methods=["POST"])
+def preview_cert():
+    """Genera un PDF de vista previa con datos de la primera fila."""
+    data = request.json
+    plantilla_nombre = data.get("plantilla")
+    fila = data.get("fila", {})
+
+    # Auto-generar folio si está vacío
+    folio_raw = fila.get("folio", "")
+    if not (folio_raw and str(folio_raw).strip()):
+        if plantilla_nombre == "dc3":
+            fila["folio"] = "DC3-001"
+        elif "reconocimiento" in plantilla_nombre:
+            fila["folio"] = "AG-001"
+        elif "constancia" in plantilla_nombre:
+            fila["folio"] = "CT-001"
+        else:
+            fila["folio"] = "001"
+
+    plantilla_html = _render_plantilla(plantilla_nombre, fila)
+
+    # Generar PDF temporal con Playwright
+    tmp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+    tmp_pdf.close()
+
+    try:
+        _generar_pdf_playwright(plantilla_html, tmp_pdf.name, single_page=True)
+        return send_file(
+            tmp_pdf.name, mimetype="application/pdf", download_name="preview.pdf"
+        )
+    except Exception as e:
+        return jsonify({"error": f"Error generando preview: {str(e)}"}), 500
+
+
+@app.route("/api/generate", methods=["POST"])
+def generate_batch():
+    """Inicia generación masiva en background."""
+    global batch_state
+
+    data = request.json
+    plantilla_nombre = data.get("plantilla")
+    tmp_excel_path = data.get("tmp_path")
+    mapeo = data.get("mapeo", {})  # {campo_cert: columna_excel}
+    filas = data.get("filas", [])
+
+    if not plantilla_nombre or not filas:
+        return jsonify({"error": "Faltan datos: plantilla y filas"}), 400
+
+    # Reiniciar estado
+    batch_state = {
+        "status": "running",
+        "total": len(filas),
+        "completed": 0,
+        "current_name": "",
+        "started_at": datetime.now().isoformat(),
+        "finished_at": None,
+        "output_dir": "",
+        "error": "",
+    }
+
+    # Thread en background
+    t = threading.Thread(
+        target=_run_batch, args=(plantilla_nombre, filas, mapeo), daemon=True
+    )
+    t.start()
+
+    return jsonify({"status": "started", "total": len(filas)})
+
+
+@app.route("/api/progress")
+def progress():
+    """SSE stream para progreso en tiempo real."""
+
+    def generate():
+        global batch_state
+        while True:
+            state = batch_state.copy()
+            yield f"data: {json.dumps(state)}\n\n"
+            if state["status"] in ("done", "error"):
+                break
+            time.sleep(0.5)
+
+    return Response(stream_with_context(generate()), mimetype="text/event-stream")
+
+
+@app.route("/api/download")
+def download_zip():
+    """Descarga todos los PDFs generados en un ZIP."""
+    global batch_state
+    output_dir = batch_state.get("output_dir", "")
+    if not output_dir or not os.path.isdir(output_dir):
+        return jsonify({"error": "No hay archivos para descargar"}), 400
+
+    zip_path = tempfile.NamedTemporaryFile(delete=False, suffix=".zip")
+    zip_path.close()
+
+    with zipfile.ZipFile(zip_path.name, "w", zipfile.ZIP_DEFLATED) as zf:
+        for f in sorted(Path(output_dir).glob("*.pdf")):
+            zf.write(f, f.name)
+
+    return send_file(
+        zip_path.name,
+        mimetype="application/zip",
+        download_name=f"certificados_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
+    )
+
+
+@app.route("/api/open-folder")
+def open_folder():
+    """Abre la carpeta de output en el explorador de archivos."""
+    global batch_state
+    output_dir = batch_state.get("output_dir", "")
+    if not output_dir or not os.path.isdir(output_dir):
+        return jsonify({"error": "No hay carpeta"}), 400
+
+    import platform
+    import subprocess
+
+    sysplat = platform.system()
+    try:
+        if sysplat == "Linux":
+            subprocess.Popen(["xdg-open", output_dir])
+        elif sysplat == "Windows":
+            subprocess.Popen(["explorer", output_dir])
+        elif sysplat == "Darwin":
+            subprocess.Popen(["open", output_dir])
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ─── Lógica interna ───
+
+
+def _render_plantilla(nombre, datos):
+    """Carga plantilla HTML y reemplaza placeholders {{campo}} con datos."""
+    path = APP_ROOT / "plantillas" / f"{nombre}.html"
+    if not path.exists():
+        raise FileNotFoundError(f"Plantilla no encontrada: {nombre}")
+
+    with open(path, "r", encoding="utf-8") as f:
+        html = f.read()
+
+    # Reemplazar {{campo}} con valor correspondiente
+    for key, val in datos.items():
+        placeholder = "{{" + key + "}}"
+        html = html.replace(placeholder, str(val) if val else "")
+
+    # Expandir placeholders de caracteres individuales: {{curp_0}}..{{curp_17}}
+    # Si existe {{curp_0}} en la plantilla y datos["curp"] tiene valor,
+    # rellenar cada carácter automáticamente
+    import re
+
+    char_fields = {
+        "curp": 18,  # CURP: 18 caracteres
+        "rfc": 13,  # RFC: 13 caracteres
+    }
+    for base_field, length in char_fields.items():
+        if base_field in datos and datos[base_field]:
+            val = str(datos[base_field]).upper().ljust(length)[:length]
+            for i in range(length):
+                html = html.replace(f"{{{{{base_field}_{i}}}}}", val[i])
+        else:
+            for i in range(length):
+                html = html.replace(f"{{{{{base_field}_{i}}}}}", "")
+
+    # Fechas expandidas: si llega fecha_ini como "01/06/2026", parsear a componentes
+    date_sources = [("fecha_ini", "fecha_ini"), ("fecha_fin", "fecha_fin")]
+    for src_key, prefix in date_sources:
+        if src_key in datos and datos[src_key] and "/" in str(datos[src_key]):
+            parts = str(datos[src_key]).strip().split("/")
+            if len(parts) == 3:
+                dia, mes, año = parts
+                # Expandir año
+                for i, ch in enumerate(año.ljust(4)[:4]):
+                    html = html.replace(f"{{{{{prefix}_año_{i}}}}}", ch)
+                # Expandir mes
+                for i, ch in enumerate(mes.ljust(2)[:2]):
+                    html = html.replace(f"{{{{{prefix}_mes_{i}}}}}", ch)
+                # Expandir día
+                for i, ch in enumerate(dia.ljust(2)[:2]):
+                    html = html.replace(f"{{{{{prefix}_dia_{i}}}}}", ch)
+
+    # Fechas expandidas directas (si ya vienen separadas)
+    date_groups = [
+        ("fecha_ini_año", 4),
+        ("fecha_ini_mes", 2),
+        ("fecha_ini_dia", 2),
+        ("fecha_fin_año", 4),
+        ("fecha_fin_mes", 2),
+        ("fecha_fin_dia", 2),
+    ]
+    for field, length in date_groups:
+        if field in datos and datos[field]:
+            val = str(datos[field]).ljust(length)[:length]
+            for i in range(length):
+                html = html.replace(f"{{{{{field}_{i}}}}}", val[i])
+        else:
+            for i in range(length):
+                html = html.replace(f"{{{{{field}_{i}}}}}", "")
+
+    # Reemplazar fecha actual si existe {{fecha_hoy}}
+    html = html.replace("{{fecha_hoy}}", datetime.now().strftime("%d de %B de %Y"))
+
+    # Reemplazar año actual
+    html = html.replace("{{año}}", str(datetime.now().year))
+
+    return html
+
+
+def _generar_pdf_playwright(html_content, output_path, single_page=False):
+    """Genera PDF desde HTML usando Playwright/Chromium."""
+    import base64
+    import mimetypes
+    import re as re_mod
+    import urllib.parse
+
+    firmas_dir = APP_ROOT / "firmas"
+    static_dir = APP_ROOT / "static"
+
+    # Convertir <img src="firmas/foo.png"> a base64 inline
+    def inline_image(match):
+        full_tag = match.group(0)
+        src_match = re_mod.search(r'src="([^"]+)"', full_tag)
+        if not src_match:
+            return full_tag
+        src = src_match.group(1)
+        # Determinar archivo físico
+        if src.startswith("firmas/"):
+            filepath = firmas_dir / src.replace("firmas/", "", 1)
+        elif src.startswith("static/"):
+            filepath = static_dir / src.replace("static/", "", 1)
+        else:
+            return full_tag
+        if not filepath.exists():
+            return full_tag
+        # Convertir a base64
+        try:
+            data = filepath.read_bytes()
+            mime, _ = mimetypes.guess_type(str(filepath))
+            if not mime:
+                ext = filepath.suffix.lower()
+                mime = {
+                    "png": "image/png",
+                    "jpg": "image/jpeg",
+                    "jpeg": "image/jpeg",
+                    "gif": "image/gif",
+                    "svg": "image/svg+xml",
+                }.get(ext.lstrip("."), "image/png")
+            b64 = base64.b64encode(data).decode("ascii")
+            new_src = f"data:{mime};base64,{b64}"
+            return full_tag.replace(f'src="{src}"', f'src="{new_src}"')
+        except Exception as e:
+            print(f"Error inlineando {src}: {e}")
+            return full_tag
+
+    html_content = re_mod.sub(r'<img[^>]*src="[^"]+"[^>]*>', inline_image, html_content)
+
+    # Convertir href a file:// (links, no necesitan base64)
+    firmas_url = "file://" + urllib.parse.quote(str(firmas_dir), safe="/:") + "/"
+    static_url = "file://" + urllib.parse.quote(str(static_dir), safe="/:") + "/"
+    html_content = html_content.replace('href="firmas/', f'href="{firmas_url}')
+    html_content = html_content.replace('href="static/', f'href="{static_url}')
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(args=["--allow-file-access-from-files"])
+        page = browser.new_page()
+        page.set_content(html_content, wait_until="networkidle")
+
+        is_landscape = "landscape" in html_content.lower()
+        # Detectar si es DC-3 (usa Letter) vs A4
+        page_format = "Letter" if "215.9mm" in html_content else "A4"
+
+        page.pdf(
+            path=output_path,
+            format=page_format,
+            landscape=is_landscape,
+            print_background=True,
+            margin={"top": "0", "right": "0", "bottom": "0", "left": "0"},
+        )
+        browser.close()
+
+
+def _run_batch(plantilla_nombre, filas, mapeo):
+    """Ejecuta la generación masiva en background.
+    filas: lista de dicts con los datos ya mapeados {campo: valor}
+    """
+    global batch_state
+
+    output_dir = (
+        RUNTIME_DIR / "output" / f"batch_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    )
+    output_dir.mkdir(parents=True, exist_ok=True)
+    batch_state["output_dir"] = str(output_dir)
+
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(args=["--allow-file-access-from-files"])
+
+            for i, datos in enumerate(filas):
+                if batch_state["status"] == "error":
+                    break
+
+                # Los datos ya vienen mapeados desde el frontend
+                nombre = datos.get("nombre", f"persona_{i + 1}")
+                curso = datos.get("curso", "")
+                folio_raw = datos.get("folio", "")
+                folio = folio_raw.strip() if folio_raw else ""
+                if not folio:
+                    # Auto-generar folio según el tipo de plantilla
+                    if plantilla_nombre == "dc3":
+                        folio = f"DC3-{i + 1:03d}"
+                    elif "reconocimiento" in plantilla_nombre:
+                        folio = f"AG-{i + 1:03d}"
+                    elif "constancia" in plantilla_nombre:
+                        folio = f"CT-{i + 1:03d}"
+                    else:
+                        folio = f"{i + 1:03d}"
+                    datos["folio"] = folio
+
+                filename = _slugify(f"{nombre}_{curso}_{folio}") + ".pdf"
+                filepath = output_dir / filename
+
+                batch_state["current_name"] = nombre
+                batch_state["completed"] = i
+
+                # Renderizar HTML
+                html = _render_plantilla(plantilla_nombre, datos)
+
+                # Convertir imágenes a base64 inline (firmas, logos)
+                import base64
+                import mimetypes
+                import re as re_mod_batch
+
+                firmas_dir_batch = APP_ROOT / "firmas"
+
+                def inline_image_batch(match):
+                    full_tag = match.group(0)
+                    src_match = re_mod_batch.search(r'src="([^"]+)"', full_tag)
+                    if not src_match:
+                        return full_tag
+                    src = src_match.group(1)
+                    # Si ya es data URI (firmas del frontend), saltar
+                    if src.startswith("data:"):
+                        return full_tag
+                    filepath = (
+                        firmas_dir_batch / src.replace("firmas/", "", 1)
+                        if src.startswith("firmas/")
+                        else None
+                    )
+                    if not filepath or not filepath.exists():
+                        return full_tag
+                    try:
+                        data = filepath.read_bytes()
+                        mime, _ = mimetypes.guess_type(str(filepath))
+                        if not mime:
+                            ext = filepath.suffix.lower()
+                            mime = {
+                                "png": "image/png",
+                                "jpg": "image/jpeg",
+                                "jpeg": "image/jpeg",
+                                "svg": "image/svg+xml",
+                            }.get(ext.lstrip("."), "image/png")
+                        b64 = base64.b64encode(data).decode("ascii")
+                        new_src = f"data:{mime};base64,{b64}"
+                        return full_tag.replace(f'src="{src}"', f'src="{new_src}"')
+                    except:
+                        return full_tag
+
+                html = re_mod_batch.sub(
+                    r'<img[^>]*src="[^"]+"[^>]*>', inline_image_batch, html
+                )
+
+                # Detectar orientación y formato
+                is_landscape = "landscape" in html.lower()
+                page_format = "Letter" if "215.9mm" in html else "A4"
+
+                # Generar PDF
+                page = browser.new_page()
+                page.set_content(html, wait_until="networkidle")
+                page.pdf(
+                    path=str(filepath),
+                    format=page_format,
+                    landscape=is_landscape,
+                    print_background=True,
+                    margin={"top": "0", "right": "0", "bottom": "0", "left": "0"},
+                )
+                page.close()
+
+            browser.close()
+
+        batch_state["completed"] = len(filas)
+        batch_state["status"] = "done"
+        batch_state["finished_at"] = datetime.now().isoformat()
+
+    except Exception as e:
+        batch_state["status"] = "error"
+        batch_state["error"] = str(e)
+        batch_state["finished_at"] = datetime.now().isoformat()
+
+
+def _slugify(text):
+    """Limpia texto para usarlo como nombre de archivo."""
+    import re
+
+    text = text.strip().lower()
+    text = re.sub(r"[^\w\s-]", "", text, flags=re.UNICODE)
+    text = re.sub(r"[\s-]+", "_", text)
+    return text[:80]
+
+
+# ─── Arranque ───
+
+
+def main():
+    url = f"http://{HOST}:{PORT}"
+    print(f"\n{'=' * 50}")
+    print(f"  🎓 Generador de Certificados AGASI")
+    print(f"  Abriendo {url} ...")
+    print(f"  Ctrl+C para cerrar")
+    print(f"{'=' * 50}\n")
+
+    # Abrir navegador automáticamente
+    threading.Timer(0.5, lambda: webbrowser.open(url)).start()
+
+    # En binario empaquetado (PyInstaller) no usar debug/reloader: el reloader
+    # intenta reimportar el módulo principal y se confunde con sys.frozen.
+    is_frozen = getattr(sys, "frozen", False)
+    app.run(host=HOST, port=PORT, debug=not is_frozen, use_reloader=not is_frozen)
+
+
+if __name__ == "__main__":
+    main()

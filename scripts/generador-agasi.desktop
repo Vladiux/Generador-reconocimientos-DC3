@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Generador AGASI
+Comment=Genera certificados, reconocimientos y DC3 en lote
+Exec=sh -c "cd '/home/thinker/AGASI/Generador reconocimientos' && source venv/bin/activate && python app.py"
+Icon=/home/thinker/AGASI/Generador reconocimientos/assets/agasi_icon_256.png
+Terminal=false
+Type=Application
+Categories=Office;Utility;

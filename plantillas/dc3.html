@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: 215.9mm 279.4mm; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 215.9mm;
+    min-height: 279.4mm;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 8.5pt;
+    color: #000;
+    background: #fff;
+    line-height: 1.2;
+  }
+
+  .pagina {
+    padding: 10mm 6mm 4mm 6mm;
+    min-height: 279.4mm;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ═══ I. ENCABEZADO ═══ */
+  .header-area {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 2mm;
+  }
+  .logo-left, .logo-right {
+    width: 60mm; min-height: 22mm;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0.5mm; text-align: center;
+  }
+  .logo-left .agente-logo { max-height: 22mm; max-width: 58mm; object-fit: contain; }
+  .logo-right .logo-empresa-img { max-height: 22mm; max-width: 58mm; object-fit: contain; }
+  .header-title { flex: 1; text-align: center; padding: 0 3mm; display: flex; flex-direction: column; justify-content: center; }
+  .header-title .main-title { font-size: 15pt; font-weight: bold; line-height: 1.15; }
+  .header-title .sub-title { font-size: 12pt; font-weight: bold; line-height: 1.15; margin-top: 0.5mm; text-transform: uppercase; }
+
+  /* ═══ II. BARRAS NEGRAS ═══ */
+  .bar {
+    background: #000; color: #fff; font-size: 10pt; font-weight: bold;
+    text-transform: uppercase; height: 8mm;
+    display: flex; align-items: center; justify-content: center;
+    text-align: center; margin: 0; border: none;
+  }
+
+  /* ═══ III. SECCIONES con GAP ═══ */
+  .section-block {
+    margin-bottom: 2mm;
+  }
+  .section-block:last-of-type {
+    margin-bottom: 0;
+  }
+
+  .tbl {
+    width: 100%; border-collapse: collapse; border: 1pt solid #000;
+  }
+  .tbl td {
+    border: 0.5pt solid #000;
+    padding: 1.2mm 0 1.2mm 3mm;
+    vertical-align: top;
+    font-size: 8.5pt;
+  }
+
+  /* ─── Campo: label + valor en la misma celda ─── */
+  .field-cell {
+    padding: 0 !important;
+  }
+  .field-cell .flabel {
+    font-size: 7.5pt; font-weight: normal; text-align: left;
+    padding: 0.5mm 0 0 3mm; display: block;
+  }
+  .field-cell .flabel .ref { font-size: 6pt; vertical-align: super; line-height: 0; }
+
+  .field-cell .fvalue {
+    font-size: 10.5pt; font-weight: normal;
+    padding: 0.5mm 0 0.5mm 3mm; display: block;
+    min-height: 4mm;
+  }
+
+  /* ═══ IV. CAJAS DE CARACTERES (CURP / RFC / Fechas) ═══
+     SIN borde superior. Línea inferior + divisiones verticales.
+     Pegadas al borde inferior de la celda. ─── */
+  .char-cell {
+    padding: 0.5mm 0 0 3mm !important;
+    vertical-align: bottom !important;
+  }
+  .char-cell .flabel {
+    font-size: 7.5pt; font-weight: normal;
+    padding: 0; display: block; margin-bottom: 0.4mm;
+  }
+  .char-cell .flabel .ref { font-size: 6pt; vertical-align: super; line-height: 0; }
+
+  .char-row {
+    display: flex;
+    width: 100%;
+  }
+  .char-box {
+    flex: 1;
+    height: 7mm;
+    border: none;
+    border-right: 0.5pt solid #000;
+    border-bottom: 0.5pt solid #000;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    font-size: 8.5pt;
+    padding-bottom: 0.4mm;
+  }
+  .char-box:first-child { border-left: 0.5pt solid #000; }
+
+  /* ─── Dos columnas para CURP + Ocupación ─── */
+  .two-col-grid {
+    width: 100%; border-collapse: collapse; border: 1pt solid #000;
+  }
+  .two-col-grid td {
+    border: 0.5pt solid #000;
+    vertical-align: top;
+    width: 50%;
+    padding: 0.5mm 0 0 3mm;
+  }
+  .two-col-grid td:first-child { border-right: 0.5pt solid #000; }
+
+  /* ═══ V. DURACIÓN + PERIODO — bloque continuo ═══ */
+  .duracion-periodo {
+    display: flex; width: 100%; border: 1pt solid #000; border-top: none;
+  }
+  .duracion-block {
+    width: 25%;
+    border-right: 0.5pt solid #000;
+    padding: 0.8mm 0 0.8mm 3mm;
+    vertical-align: top;
+  }
+
+  /* ─── Periodo: subceldas independientes ─── */
+  .periodo-block {
+    flex: 1;
+    display: flex; align-items: stretch;
+    padding: 0;
+  }
+  .periodo-label {
+    display: flex; align-items: flex-end;
+    font-weight: bold; font-size: 7.5pt;
+    padding: 0 0.5mm 1.5mm 1.5mm;
+    white-space: nowrap;
+    border-right: 0.5pt solid #000;
+  }
+  .date-subcell {
+    display: flex; flex-direction: column;
+    border-right: 0.5pt solid #000;
+    flex: 1;
+    padding: 0;
+  }
+  .date-subcell:last-of-type { border-right: none; }
+  .date-subcell .sc-label {
+    text-align: center;
+    font-size: 6.5pt; font-weight: normal;
+    padding-top: 0.5mm;
+    flex-shrink: 0;
+  }
+  .date-subcell .sc-chars {
+    display: flex;
+    flex: 1;
+    align-items: stretch;
+  }
+  .date-subcell .sc-ch {
+    flex: 1;
+    border-left: 0.5pt solid #000;
+    display: flex; align-items: flex-end; justify-content: center;
+    font-size: 8.5pt; padding-bottom: 0.4mm;
+  }
+  .date-subcell .sc-ch:first-child { border-left: none; }
+
+  .a-subcell {
+    display: flex; align-items: flex-end; justify-content: center;
+    font-weight: bold; font-size: 7.5pt;
+    padding: 0 1.5mm 1.5mm 1.5mm;
+    border-right: 0.5pt solid #000;
+    flex-shrink: 0;
+  }
+  .a-subcell:last-of-type { border-right: none; }
+
+  /* ═══ VI. TEXTO LEGAL ═══ */
+  .legal-text {
+    text-align: center; font-weight: bold; font-size: 9pt;
+    line-height: 1.3; padding: 2mm 3mm 1mm 3mm;
+  }
+
+  /* ═══ VII. FIRMAS ═══ */
+  .signature-area {
+    border: 1pt solid #000; padding: 3mm 2.5mm;
+    margin-top: 0;
+  }
+  .signature-grid { display: flex; justify-content: space-between; gap: 2.5mm; }
+  .sig-col { flex: 1; text-align: center; display: flex; flex-direction: column; align-items: center; }
+  .sig-role { font-size: 7.5pt; font-weight: bold; margin-bottom: 0.5mm; min-height: 4mm; }
+  .sig-role .ref { font-size: 6pt; vertical-align: super; line-height: 0; }
+  .sig-line-spacer { min-height: 11mm; display: flex; align-items: flex-end; justify-content: center; width: 100%; }
+  .sig-img { max-height: 12mm; max-width: 45mm; object-fit: contain; opacity: 0.9; }
+  .sig-line { width: 70%; border-top: 0.5pt solid #000; margin: 0 auto; }
+  .sig-label { font-size: 7pt; margin-top: 0.3mm; }
+  .sig-name { font-size: 7pt; font-weight: bold; margin-top: 0.3mm; }
+  .sig-title { font-size: 6.5pt; color: #000; }
+
+  .instructions { margin-top: 1mm; font-size: 7pt; line-height: 1.15; }
+  .notas { margin-top: 0.5mm; font-size: 7pt; line-height: 1.15; }
+  .notas .n { display: block; margin-bottom: 0.2mm; }
+  .notas a { color: #000; text-decoration: underline; }
+
+  .footer { margin-top: auto; padding-top: 3mm; text-align: right; font-size: 8pt; font-weight: bold; line-height: 1.15; }
+
+  /* ═══════════════════════════════════════════════════════════════
+     PÁGINA 2 — REVERSO
+     ═══════════════════════════════════════════════════════════════ */
+  .pagina-2 {
+    page-break-before: always; padding: 10mm 6mm 4mm 6mm;
+    min-height: 279.4mm; display: flex; flex-direction: column;
+  }
+  .catalogo-titulo { font-size: 8pt; font-weight: bold; text-transform: uppercase; text-align: center; margin-bottom: 3mm; }
+  .catalogo-doble { display: flex; gap: 2mm; }
+  .catalogo-doble .catalogo-tabla { flex: 1; }
+  .catalogo-tabla {
+    width: 100%; border-collapse: collapse; font-size: 6.5pt; margin-bottom: 3mm;
+    border: none;
+  }
+  .catalogo-tabla th {
+    font-weight: bold; font-size: 6.5pt; text-align: center;
+    border: none;
+    padding: 0.8mm 1mm; background: transparent; color: #000; text-transform: uppercase;
+  }
+  .catalogo-tabla td { border: none; padding: 0.5mm 1.5mm; vertical-align: top; font-weight: normal; }
+  .catalogo-tabla td:first-child { text-align: center; font-weight: bold; width: 14%; }
+  .areas-tabla {
+    width: 100%; border-collapse: collapse; font-size: 6.5pt;
+    border: none;
+  }
+  .areas-tabla th { font-weight: bold; font-size: 6.5pt; text-align: center; border: none; padding: 0.8mm 1mm; background: transparent; color: #000; text-transform: uppercase; }
+  .areas-tabla td { border: none; padding: 0.5mm 1.5mm; }
+  .areas-tabla td:first-child { text-align: center; font-weight: bold; width: 12%; }
+  .footer-2 { margin-top: auto; text-align: right; font-size: 8pt; font-weight: bold; padding-top: 3mm; line-height: 1.15; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PÁGINA 1 — ANVERSO
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="pagina">
+<!-- Placeholders base para detección en frontend (ocultos, expandidos por _render_plantilla) -->
+<span style="display:none">{{curp}}{{rfc}}{{calificacion}}{{lugar}}{{fecha}}{{folio}}{{fecha_ini}}{{fecha_fin}}{{duracion}}{{area_tematica}}{{representante_legal}}{{representante_legal_puesto}}{{firma_representante}}{{representante_trabajadores}}{{firma_trabajadores}}{{mostrar_rep_trabajadores}}</span>
+
+  <!-- I. ENCABEZADO -->
+  <div class="header-area">
+    <div class="logo-left">
+      <img class="agente-logo" src="firmas/logo_agente.jpeg" alt="">
+    </div>
+    <div class="header-title">
+      <div class="main-title">Formato DC-3</div>
+      <div class="sub-title">Constancia de Competencias o de Habilidades Laborales</div>
+    </div>
+    <div class="logo-right">
+      <img class="logo-empresa-img" src="firmas/AG_Principal.png" alt="AGASI">
+    </div>
+  </div>
+
+  <!-- ═══ SECCIÓN 1: DATOS DEL TRABAJADOR ═══ -->
+  <div class="section-block">
+    <div class="bar">Datos del Trabajador</div>
+
+    <table class="tbl">
+      <tr>
+        <td class="field-cell">
+          <span class="flabel">Nombre (Anotar apellido paterno, apellido materno y nombre(s))</span>
+          <span class="fvalue" style="min-height:5mm">{{nombre}}</span>
+        </td>
+      </tr>
+    </table>
+
+    <table class="two-col-grid">
+      <tr>
+        <td class="char-cell">
+          <span class="flabel">Clave Única de Registro de Población</span>
+          <div class="char-row">
+            <div class="char-box" style="flex:1">{{curp_0}}</div>
+            <div class="char-box" style="flex:1">{{curp_1}}</div>
+            <div class="char-box" style="flex:1">{{curp_2}}</div>
+            <div class="char-box" style="flex:1">{{curp_3}}</div>
+            <div class="char-box" style="flex:1">{{curp_4}}</div>
+            <div class="char-box" style="flex:1">{{curp_5}}</div>
+            <div class="char-box" style="flex:1">{{curp_6}}</div>
+            <div class="char-box" style="flex:1">{{curp_7}}</div>
+            <div class="char-box" style="flex:1">{{curp_8}}</div>
+            <div class="char-box" style="flex:1">{{curp_9}}</div>
+            <div class="char-box" style="flex:1">{{curp_10}}</div>
+            <div class="char-box" style="flex:1">{{curp_11}}</div>
+            <div class="char-box" style="flex:1">{{curp_12}}</div>
+            <div class="char-box" style="flex:1">{{curp_13}}</div>
+            <div class="char-box" style="flex:1">{{curp_14}}</div>
+            <div class="char-box" style="flex:1">{{curp_15}}</div>
+            <div class="char-box" style="flex:1">{{curp_16}}</div>
+            <div class="char-box" style="flex:1">{{curp_17}}</div>
+          </div>
+        </td>
+        <td class="char-cell">
+          <span class="flabel">Ocupación específica (Catálogo Nacional de Ocupaciones)<span class="ref">1/</span></span>
+          <div style="min-height:5.5mm; display:flex; align-items:flex-end; padding-bottom:0.2mm">{{ocupacion}}</div>
+        </td>
+      </tr>
+    </table>
+
+    <table class="tbl">
+      <tr>
+        <td class="field-cell">
+          <span class="flabel">Puesto</span>
+          <span class="fvalue">{{puesto}}</span>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- ═══ SECCIÓN 2: DATOS DE LA EMPRESA ═══ -->
+  <div class="section-block">
+    <div class="bar">Datos de la Empresa</div>
+
+    <table class="tbl">
+      <tr>
+        <td class="field-cell">
+          <span class="flabel">Nombre o razón social (En caso de persona física, anotar apellido paterno, apellido materno y nombre(s))</span>
+          <span class="fvalue">{{empresa}}</span>
+        </td>
+      </tr>
+    </table>
+
+    <table class="tbl">
+      <tr>
+        <td class="char-cell">
+          <span class="flabel">Registro Federal de Contribuyentes con homoclave (SHCP)</span>
+          <div class="char-row">
+            <div class="char-box" style="flex:1">{{rfc_0}}</div>
+            <div class="char-box" style="flex:1">{{rfc_1}}</div>
+            <div class="char-box" style="flex:1">{{rfc_2}}</div>
+            <div class="char-box" style="flex:1">{{rfc_3}}</div>
+            <div class="char-box" style="flex:1">{{rfc_4}}</div>
+            <div class="char-box" style="flex:1">{{rfc_5}}</div>
+            <div class="char-box" style="flex:1">{{rfc_6}}</div>
+            <div class="char-box" style="flex:1">{{rfc_7}}</div>
+            <div class="char-box" style="flex:1">{{rfc_8}}</div>
+            <div class="char-box" style="flex:1">{{rfc_9}}</div>
+            <div class="char-box" style="flex:1">{{rfc_10}}</div>
+            <div class="char-box" style="flex:1">{{rfc_11}}</div>
+            <div class="char-box" style="flex:1">{{rfc_12}}</div>
+          </div>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- ═══ SECCIÓN 3: DATOS DEL PROGRAMA ═══ -->
+  <div class="section-block">
+    <div class="bar">Datos del Programa de Capacitación, Adiestramiento y Productividad</div>
+
+    <table class="tbl">
+      <tr>
+        <td class="field-cell">
+          <span class="flabel">Nombre del curso</span>
+          <span class="fvalue">{{curso}}</span>
+        </td>
+      </tr>
+    </table>
+
+    <!-- Duración + Periodo: bloque continuo sin gap -->
+    <div class="duracion-periodo">
+      <div class="duracion-block">
+        <span class="flabel" style="font-size:6.5pt; display:block; margin-bottom:0.2mm">Duración en horas</span>
+        <div style="min-height:5.5mm; display:flex; align-items:flex-end; padding-bottom:0.2mm; font-weight:bold">{{duracion}}</div>
+      </div>
+      <div class="periodo-block">
+        <div class="periodo-label">Periodo de ejecución:<br>De</div>
+        <div class="date-subcell" style="flex:2"><!-- Año -->
+          <div class="sc-label">Año</div>
+          <div class="sc-chars">
+            <div class="sc-ch">{{fecha_ini_año_0}}</div>
+            <div class="sc-ch">{{fecha_ini_año_1}}</div>
+            <div class="sc-ch">{{fecha_ini_año_2}}</div>
+            <div class="sc-ch">{{fecha_ini_año_3}}</div>
+          </div>
+        </div>
+        <div class="date-subcell" style="flex:1"><!-- Mes -->
+          <div class="sc-label">Mes</div>
+          <div class="sc-chars">
+            <div class="sc-ch">{{fecha_ini_mes_0}}</div>
+            <div class="sc-ch">{{fecha_ini_mes_1}}</div>
+          </div>
+        </div>
+        <div class="date-subcell" style="flex:1"><!-- Día -->
+          <div class="sc-label">Día</div>
+          <div class="sc-chars">
+            <div class="sc-ch">{{fecha_ini_dia_0}}</div>
+            <div class="sc-ch">{{fecha_ini_dia_1}}</div>
+          </div>
+        </div>
+        <div class="a-subcell">a</div>
+        <div class="date-subcell" style="flex:2"><!-- Año -->
+          <div class="sc-label">Año</div>
+          <div class="sc-chars">
+            <div class="sc-ch">{{fecha_fin_año_0}}</div>
+            <div class="sc-ch">{{fecha_fin_año_1}}</div>
+            <div class="sc-ch">{{fecha_fin_año_2}}</div>
+            <div class="sc-ch">{{fecha_fin_año_3}}</div>
+          </div>
+        </div>
+        <div class="date-subcell" style="flex:1"><!-- Mes -->
+          <div class="sc-label">Mes</div>
+          <div class="sc-chars">
+            <div class="sc-ch">{{fecha_fin_mes_0}}</div>
+            <div class="sc-ch">{{fecha_fin_mes_1}}</div>
+          </div>
+        </div>
+        <div class="date-subcell" style="flex:1"><!-- Día -->
+          <div class="sc-label">Día</div>
+          <div class="sc-chars">
+            <div class="sc-ch">{{fecha_fin_dia_0}}</div>
+            <div class="sc-ch">{{fecha_fin_dia_1}}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <table class="tbl">
+      <tr>
+        <td class="field-cell">
+          <span class="flabel">Área temática del curso<span class="ref">2/</span></span>
+          <span class="fvalue">{{area_tematica}}</span>
+        </td>
+      </tr>
+    </table>
+
+    <table class="tbl">
+      <tr>
+        <td class="field-cell">
+          <span class="flabel">Nombre del agente capacitador o STPS<span class="ref">3/</span></span>
+          <span class="fvalue">AGASI — Asesoría, Gestión Ambiental y Servicios Industriales</span>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- ═══ TEXTO LEGAL ═══ -->
+  <div class="legal-text">
+    Los datos se asientan en esta constancia bajo protesta de decir verdad,<br>
+    apercibidos de la responsabilidad en que incurre todo aquel que no se conduce con verdad.
+  </div>
+
+  <!-- ═══ FIRMAS ═══ -->
+  <div class="section-block">
+    <div class="signature-area">
+      <div class="signature-grid">
+        <div class="sig-col">
+          <div class="sig-role">Instructor o tutor</div>
+          <div class="sig-line-spacer"><img class="sig-img" src="firmas/instructor.png" alt="" onerror="this.style.display='none'"></div>
+          <div class="sig-line"></div>
+          <div class="sig-label">Nombre y firma</div>
+          <div class="sig-name">{{instructor}}</div>
+        </div>
+        <div class="sig-col">
+          <div class="sig-role">Patrón o representante legal<span class="ref">4/</span></div>
+          <div class="sig-line-spacer"><img class="sig-img" src="{{firma_representante}}" alt="" onerror="this.style.display='none'"></div>
+          <div class="sig-line"></div>
+          <div class="sig-label">Nombre y firma</div>
+          <div class="sig-name">{{representante_legal}}</div>
+          <div class="sig-title">{{representante_legal_puesto}}</div>
+        </div>
+        <div class="sig-col">
+          <div class="sig-role">Representante de los trabajadores<span class="ref">5/</span></div>
+          <div class="sig-line-spacer"><img class="sig-img" src="{{firma_trabajadores}}" alt="" onerror="this.style.display='none'"></div>
+          <div class="sig-line"></div>
+          <div class="sig-label">Nombre y firma</div>
+          <div class="sig-name">{{representante_trabajadores}}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ INSTRUCCIONES ═══ -->
+  <div class="instructions">
+    <strong>INSTRUCCIONES</strong><br>
+    - Llenar a máquina o con letra de molde.<br>
+    - Deberá entregarse al trabajador dentro de los veinte días hábiles siguientes al término del curso de capacitación aprobado.
+  </div>
+
+  <!-- ═══ NOTAS ═══ -->
+  <div class="notas">
+    <span class="n"><strong>1/</strong> Las áreas y subáreas ocupacionales del Catálogo Nacional de Ocupaciones se encuentran disponibles en el reverso de este formato y en la página <a href="https://www.gob.mx/stps/">www.gob.mx/stps/</a></span>
+    <span class="n"><strong>2/</strong> Las áreas temáticas de los cursos se encuentran disponibles en el reverso de este formato y en la página <a href="https://www.gob.mx/stps/">www.gob.mx/stps/</a></span>
+    <span class="n"><strong>3/</strong> Cursos impartidos por el área competente de la Secretaría del Trabajo y Previsión Social.</span>
+    <span class="n"><strong>4/</strong> Para empresas con menos de 51 trabajadores. Para empresas con más de 50 trabajadores firmaría el representante del patrón ante la Comisión mixta de capacitación, adiestramiento y productividad.</span>
+    <span class="n"><strong>5/</strong> Solo para empresas con más de 50 trabajadores.</span>
+    <span class="n">* Dato no obligatorio.</span>
+  </div>
+
+  <div class="footer"><span style="float:left">Folio: <strong>{{folio}}</strong></span>DC-3<br>ANVERSO</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PÁGINA 2 — REVERSO
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="pagina-2">
+  <div class="catalogo-titulo">Claves y denominaciones de áreas y subáreas del Catálogo Nacional de Ocupaciones</div>
+  <div class="catalogo-doble">
+    <table class="catalogo-tabla">
+      <thead><tr><th>CLAVE</th><th>DENOMINACIÓN</th></tr></thead>
+      <tbody>
+        <tr><td>01</td><td>Cultivo, crianza y aprovechamiento</td></tr>
+        <tr><td>01.1</td><td>Agricultura y silvicultura</td></tr>
+        <tr><td>01.2</td><td>Ganadería</td></tr>
+        <tr><td>01.3</td><td>Pesca y acuacultura</td></tr>
+        <tr><td>02</td><td>Extracción y suministro</td></tr>
+        <tr><td>02.1</td><td>Exploración</td></tr>
+        <tr><td>02.2</td><td>Extracción</td></tr>
+        <tr><td>02.3</td><td>Refinación y beneficio</td></tr>
+        <tr><td>02.4</td><td>Provisión de energía</td></tr>
+        <tr><td>02.5</td><td>Provisión de agua</td></tr>
+        <tr><td>03</td><td>Construcción</td></tr>
+        <tr><td>03.1</td><td>Planeación y dirección de obras</td></tr>
+        <tr><td>03.2</td><td>Edificación y urbanización</td></tr>
+        <tr><td>03.3</td><td>Acabado</td></tr>
+        <tr><td>03.4</td><td>Instalación y mantenimiento</td></tr>
+        <tr><td>04</td><td>Tecnología</td></tr>
+        <tr><td>04.1</td><td>Mecánica</td></tr>
+        <tr><td>04.2</td><td>Electricidad</td></tr>
+        <tr><td>04.3</td><td>Electrónica</td></tr>
+        <tr><td>04.4</td><td>Informática</td></tr>
+        <tr><td>04.5</td><td>Telecomunicaciones</td></tr>
+        <tr><td>04.6</td><td>Procesos industriales</td></tr>
+        <tr><td>05</td><td>Procesamiento y fabricación</td></tr>
+        <tr><td>05.1</td><td>Minerales no metálicos</td></tr>
+        <tr><td>05.2</td><td>Metales</td></tr>
+        <tr><td>05.3</td><td>Alimentos y bebidas</td></tr>
+        <tr><td>05.4</td><td>Textiles y prendas de vestir</td></tr>
+        <tr><td>05.5</td><td>Materia orgánica</td></tr>
+        <tr><td>05.6</td><td>Productos químicos</td></tr>
+        <tr><td>05.7</td><td>Productos metálicos y de hule y plástico</td></tr>
+        <tr><td>05.8</td><td>Productos eléctricos y electrónicos</td></tr>
+        <tr><td>05.9</td><td>Productos impresos</td></tr>
+      </tbody>
+    </table>
+    <table class="catalogo-tabla">
+      <thead><tr><th>CLAVE</th><th>DENOMINACIÓN</th></tr></thead>
+      <tbody>
+        <tr><td>06</td><td>Transporte</td></tr>
+        <tr><td>06.1</td><td>Ferroviario</td></tr>
+        <tr><td>06.2</td><td>Autotransporte</td></tr>
+        <tr><td>06.3</td><td>Aéreo</td></tr>
+        <tr><td>06.4</td><td>Marítimo y fluvial</td></tr>
+        <tr><td>06.5</td><td>Servicios de apoyo</td></tr>
+        <tr><td>07</td><td>Provisión de bienes y servicios</td></tr>
+        <tr><td>07.1</td><td>Comercio</td></tr>
+        <tr><td>07.2</td><td>Alimentación y hospedaje</td></tr>
+        <tr><td>07.3</td><td>Turismo</td></tr>
+        <tr><td>07.4</td><td>Deporte y esparcimiento</td></tr>
+        <tr><td>07.5</td><td>Servicios personales</td></tr>
+        <tr><td>07.6</td><td>Reparación de artículos de uso doméstico y personal</td></tr>
+        <tr><td>07.7</td><td>Limpieza</td></tr>
+        <tr><td>07.8</td><td>Servicio postal y mensajería</td></tr>
+        <tr><td>08</td><td>Gestión y soporte administrativo</td></tr>
+        <tr><td>08.1</td><td>Bolsa, banca y seguros</td></tr>
+        <tr><td>08.2</td><td>Administración</td></tr>
+        <tr><td>08.3</td><td>Servicios legales</td></tr>
+        <tr><td>09</td><td>Salud y protección social</td></tr>
+        <tr><td>09.1</td><td>Servicios médicos</td></tr>
+        <tr><td>09.2</td><td>Inspección sanitaria y del medio ambiente</td></tr>
+        <tr><td>09.3</td><td>Seguridad social</td></tr>
+        <tr><td>09.4</td><td>Protección de bienes y/o personas</td></tr>
+        <tr><td>10</td><td>Comunicación</td></tr>
+        <tr><td>10.1</td><td>Publicación</td></tr>
+        <tr><td>10.2</td><td>Radio, cine, televisión y teatro</td></tr>
+        <tr><td>10.3</td><td>Interpretación artística</td></tr>
+        <tr><td>10.4</td><td>Traducción e interpretación lingüística</td></tr>
+        <tr><td>10.5</td><td>Publicidad, propaganda y relaciones públicas</td></tr>
+        <tr><td>11</td><td>Desarrollo y extensión del conocimiento</td></tr>
+        <tr><td>11.1</td><td>Investigación</td></tr>
+        <tr><td>11.2</td><td>Enseñanza</td></tr>
+        <tr><td>11.3</td><td>Difusión cultural</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="catalogo-titulo" style="margin-top:1mm">Claves y denominaciones del catálogo de áreas temáticas de los cursos</div>
+  <table class="areas-tabla">
+    <thead><tr><th>CLAVE</th><th>DENOMINACIÓN</th><th>CLAVE</th><th>DENOMINACIÓN</th></tr></thead>
+    <tbody>
+      <tr><td>1000</td><td>Producción general</td><td>6000</td><td>Seguridad</td></tr>
+      <tr><td>2000</td><td>Servicios</td><td>7000</td><td>Desarrollo personal y familiar</td></tr>
+      <tr><td>3000</td><td>Administración, contabilidad y economía</td><td>8000</td><td>Uso de tecnologías de la información y comunicación</td></tr>
+      <tr><td>4000</td><td>Comercialización</td><td>9000</td><td>Participación social</td></tr>
+      <tr><td>5000</td><td>Mantenimiento y reparación</td><td></td><td></td></tr>
+    </tbody>
+  </table>
+  <div class="footer-2">DC-3<br>REVERSO</div>
+</div>
+
+</body>
+</html>
