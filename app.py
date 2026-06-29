@@ -112,36 +112,44 @@ PLANTILLAS_EXCEL = {
     },
     "dc3": {
         "nombre": "Plantilla DC-3",
+        # Orden basado en "quién llena cada campo":
+        # 🟡 = lo llena el cliente del cliente (datos del participante + empresa)
+        # 🟢 = lo llena AGASI (datos del curso + control interno)
+        # Todos los amarillos van juntos primero, sin intercalar.
         "headers": [
-            "Nombre",  # Apellido paterno, apellido materno, nombre(s)
-            "CURP",  # 18 caracteres
-            "Ocupacion",  # Catálogo Nacional de Ocupaciones
-            "Puesto",
-            "Empresa (Razón Social)",
-            "RFC (de la Empresa)",  # 12 caracteres - RFC de la empresa, no del participante
-            "Curso",
-            "Duracion",  # Horas
-            "Fecha Inicio",  # dd/mm/aaaa
-            "Fecha Fin",  # dd/mm/aaaa
-            "Area Tematica",  # Código + nombre, ej: "6000 Seguridad"
-            "Instructor",
-            "Folio",  # Opcional — si va vacío se genera automáticamente
+            "Nombre",                    # 🟡 Apellido paterno, apellido materno, nombre(s)
+            "CURP",                      # 🟡 18 caracteres
+            "Puesto",                    # 🟡 Puesto del participante en la empresa
+            "Empresa (Razón Social)",    # 🟡 Razón social completa
+            "RFC (de la Empresa)",       # 🟡 12 caracteres - RFC de la empresa
+            "Representante Legal",       # 🟡 Quien firma como representante de la empresa
+            "Curso",                     # 🟢 Nombre del curso
+            "Duracion (hrs)",            # 🟢 Horas
+            "Fecha Inicio",              # 🟢 dd/mm/aaaa
+            "Fecha Fin",                 # 🟢 dd/mm/aaaa
+            "Area Tematica",             # 🟢 Código + nombre, ej: "6000 Seguridad"
+            "Ocupacion",                 # 🟢 Catálogo Nacional de Ocupaciones
+            "Instructor",                # 🟢 Nombre del instructor
+            "Folio",                     # 🟢 Opcional — si va vacío se genera automáticamente
         ],
         "ejemplo": [
             "López Hernández María Fernanda",
             "LOHF900215HGPLRR09",
-            "09.4 Protección",
             "Supervisor",
             "Industrias Peoles",
             "IPE850101AB1",
+            "Ing. Alejandro García Salinas",  # Representante Legal
             "Seguridad Industrial y Protección Civil",
             "40",
             "01/06/2026",
             "15/06/2026",
             "6000 Seguridad",
+            "09.4 Protección",
             "Ing. Roberto Martínez",
             "",  # Folio en blanco → auto-genera
         ],
+        # Columnas que se rellenan en amarillo en la plantilla (las primeras 6)
+        "columnas_amarillas": 6,
     },
     "constancia": {
         "nombre": "Plantilla Constancia",
@@ -171,6 +179,7 @@ def download_plantilla_excel(tipo):
     from io import BytesIO
 
     from openpyxl import Workbook
+    from openpyxl.drawing.image import Image as XLImage
     from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
     from openpyxl.utils import get_column_letter
 
@@ -186,7 +195,7 @@ def download_plantilla_excel(tipo):
     ws = wb.active
     ws.title = info["nombre"][:30]
 
-    # Estilos
+    # ─── Estilos ───
     header_font = Font(name="Arial", size=11, bold=True, color="FFFFFF")
     header_fill = PatternFill("solid", fgColor="1A4786")
     header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
@@ -195,63 +204,176 @@ def download_plantilla_excel(tipo):
     thin = Side(border_style="thin", color="94A3B8")
     border = Border(left=thin, right=thin, top=thin, bottom=thin)
 
-    # Fila 1: título del documento
+    # 🟡 Color amarillo para las celdas que llena el cliente del cliente
+    yellow_fill = PatternFill("solid", fgColor="FFF3A0")  # amarillo suave, no agresivo
+    # Color de la fuente para celdas amarillas: gris oscuro para que se lea
+    yellow_font = Font(name="Arial", size=10, color="1F2937")
+
+    # ─── Logo (esquina superior izquierda) ───
+    # El logo está anclado en A1, pero NO ocupa ninguna columna — es una imagen
+    # flotante que se superpone a la celda. La tabla de headers puede empezar
+    # tranquilamente en columna A.
+    logo_path = APP_ROOT / "AG_Principal.png"
+    has_logo = logo_path.exists()
+    # No se reserva ninguna columna para el logo (es solo visual)
+    logo_width_cols = 0
+
+    # ─── Fila 1: título del documento (a la derecha del logo) ───
+    if has_logo:
+        # El título se combina solo desde la columna después del logo hasta el final
+        title_start_col = logo_width_cols + 1
+    else:
+        title_start_col = 1
     ws.merge_cells(
-        start_row=1, start_column=1, end_row=1, end_column=len(info["headers"])
+        start_row=1,
+        start_column=title_start_col,
+        end_row=1,
+        end_column=len(info["headers"]),
     )
-    title_cell = ws.cell(row=1, column=1, value=info["nombre"])
-    title_cell.font = Font(name="Arial", size=14, bold=True, color="1A4786")
+    title_cell = ws.cell(row=1, column=title_start_col, value=info["nombre"])
+    title_cell.font = Font(name="Arial", size=16, bold=True, color="1A4786")
     title_cell.alignment = Alignment(horizontal="center", vertical="center")
-    ws.row_dimensions[1].height = 25
+    ws.row_dimensions[1].height = 30
 
-    # Fila 2: instrucciones
+    # ─── Filas de instrucciones: dinámicamente según el número de líneas ───
+    # El número exacto se calcula DESPUÉS de definir instr_lines (más abajo).
+    # Por ahora usamos valores temporales que se sobreescribirán.
+    instr_start_row = 2
+    instr_start_col = logo_width_cols + 1 if has_logo else 1
+
+    # placeholder; se sobreescribe después
+    instr_end_row = 3
+    header_row = 4
+    example_row = 5
+
+    # ─── Texto de instrucciones en formato lista ───
+    if tipo == "dc3":
+        instr_lines = [
+            "INSTRUCCIONES:",
+            "• Complete los datos de los participantes.",
+            "• El campo NOMBRE debe ir como: Apellido Paterno + Apellido Materno + Nombre(s)   Ej: López Hernández María Fernanda",
+            "• La fila de ejemplo debe borrarse antes de procesar.",
+            "• La columna FOLIO es opcional — si la deja vacía, el sistema asigna una automáticamente.",
+            "",
+            "Para DC-3:",
+            "• CURP debe tener exactamente 18 caracteres.",
+            "• El RFC es el de la EMPRESA (no del participante). Persona Moral: 12 caracteres · Persona Física: 13 caracteres.",
+            "• En EMPRESA escriba la Razón Social completa.",
+            "• En ÁREA TEMÁTICA escriba: CÓDIGO + NOMBRE   Ej: 6000 Seguridad",
+            "• REPRESENTANTE LEGAL puede quedar vacío — si lo deja vacío, se usa el valor por defecto configurado en el sistema.",
+            "",
+            "─── ¿QUIÉN LLENA CADA CAMPO? ───",
+            "🟡  AMARILLO  →  Los llena el CLIENTE (usted):",
+            "       Nombre, CURP, Puesto, Empresa, RFC, Representante Legal",
+            "⬜  BLANCO    →  Los llena AGASI:",
+            "       Curso, Duracion, Fechas, Area Tematica, Ocupacion, Instructor, Folio",
+        ]
+    elif tipo == "reconocimiento":
+        instr_lines = [
+            "INSTRUCCIONES:",
+            "• Complete los datos de los participantes.",
+            "• El campo NOMBRE debe ir como: Apellido Paterno + Apellido Materno + Nombre(s)   Ej: López Hernández María Fernanda",
+            "• La fila de ejemplo debe borrarse antes de procesar.",
+            "• La columna FOLIO es opcional — si la deja vacía, el sistema asigna una automáticamente.",
+            "",
+            "─── ¿QUIÉN LLENA CADA CAMPO? ───",
+            "Todos los campos los llena el CLIENTE (usted).",
+        ]
+    elif tipo == "constancia":
+        instr_lines = [
+            "INSTRUCCIONES:",
+            "• Complete los datos de los participantes.",
+            "• El campo NOMBRE debe ir como: Apellido Paterno + Apellido Materno + Nombre(s)   Ej: Juan Pérez García",
+            "• La fila de ejemplo debe borrarse antes de procesar.",
+            "• La columna FOLIO es opcional — si la deja vacía, el sistema asigna una automáticamente.",
+            "",
+            "─── ¿QUIÉN LLENA CADA CAMPO? ───",
+            "Todos los campos los llena el CLIENTE (usted).",
+        ]
+    else:
+        instr_lines = ["INSTRUCCIONES: Complete los datos de los participantes."]
+
+    # ─── Calcular el número de filas para instrucciones dinámicamente ───
+    # DC-3 con la sección "¿quién llena cada campo?" tiene ~18 líneas.
+    # Como las instrucciones ahora empiezan en columna B (no E), hay mucho
+    # más ancho para el texto → caben más líneas por fila.
+    n_lines = len(instr_lines)
+    lines_per_row = 6  # ~6 líneas a 9pt caben en una fila (con instrucciones en col B)
+    n_instr_rows = max(2, -(-n_lines // lines_per_row))  # ceil division, mínimo 2
+    instr_end_row = instr_start_row + n_instr_rows - 1
+    header_row = instr_end_row + 1
+    example_row = header_row + 1
+
+    # Ahora sí, mergear las celdas con el rango correcto
     ws.merge_cells(
-        start_row=2, start_column=1, end_row=2, end_column=len(info["headers"])
+        start_row=instr_start_row,
+        start_column=instr_start_col,
+        end_row=instr_end_row,
+        end_column=len(info["headers"]),
     )
-    instr_text = (
-        "INSTRUCCIONES: Complete los datos de los participantes. "
-        "El campo NOMBRE debe ir como Apellido Paterno + Apellino Materno + Nombre(s) (ej: López Hernández María Fernanda). "
-        "La fila de ejemplo debe borrarse antes de procesar. "
-        "La columna FOLIO es opcional — si la deja vacía, el sistema asigna una automáticamente. "
-        "Para DC-3: CURP debe tener 18 caracteres exactos; "
-        "el RFC es el de la EMPRESA (no del participante), 12 caracteres para Persona Moral; "
-        "Para el campo EMPRESA Escribe la Razón social"
-        "Área Temática escribe CÓDIGO + NOMBRE (ej: 6000 Seguridad)."
-    )
-    instr_cell = ws.cell(row=2, column=1, value=instr_text)
-    instr_cell.font = Font(name="Arial", size=9, italic=True, color="475569")
+
+    # ─── Leyenda al inicio de las instrucciones (misma celda mergeada) ───
+    # La leyenda va como primera línea, antes de "INSTRUCCIONES:", en la misma
+    # celda mergeada. Una sola línea, no crea celdas nuevas.
+    if tipo in ("dc3", "reconocimiento", "constancia"):
+        # Solo la agregamos si no está ya al inicio
+        if not instr_lines or not instr_lines[0].startswith("💡"):
+            instr_lines.insert(0, "💡 Si no ves todo el texto, haz más grande la celda para ver todas las instrucciones completas.")
+            instr_lines.insert(1, "")  # línea en blanco para separar
+
+    instr_text = "\n".join(instr_lines)
+    instr_cell = ws.cell(row=instr_start_row, column=instr_start_col, value=instr_text)
+    # Instrucciones en NEGRITAS para que se lean bien (no en itálica)
+    instr_cell.font = Font(name="Arial", size=9, bold=True, color="1F2937")
     instr_cell.alignment = Alignment(
-        horizontal="left", vertical="center", wrap_text=True
+        horizontal="left", vertical="top", wrap_text=True
     )
-    ws.row_dimensions[2].height = 60
+    for r in range(instr_start_row, instr_end_row + 1):
+        ws.row_dimensions[r].height = 22
 
-    # Fila 3 vacía
+    # ─── Headers (con color amarillo en las primeras N columnas si aplica) ───
+    n_amarillas = info.get("columnas_amarillas", 0) if tipo == "dc3" else 0
 
-    # Fila 4: headers
+    # Si hay logo, asegurar que la fila del título tenga buena altura
+    if has_logo:
+        ws.row_dimensions[1].height = max(ws.row_dimensions[1].height or 0, 30)
+
+    # Headers desde la columna 1 (alineados a la izquierda, sin corrimiento)
     for col_idx, header in enumerate(info["headers"], 1):
-        c = ws.cell(row=4, column=col_idx, value=header)
+        c = ws.cell(row=header_row, column=col_idx, value=header)
         c.font = header_font
+        # El header siempre azul, el amarillo es para las celdas de datos
         c.fill = header_fill
         c.alignment = header_align
         c.border = border
-    ws.row_dimensions[4].height = 30
+    ws.row_dimensions[header_row].height = 30
 
-    # Fila 5: ejemplo
+    # ─── Fila de ejemplo: con amarillo en las primeras N columnas ───
     for col_idx, val in enumerate(info["ejemplo"], 1):
-        c = ws.cell(row=5, column=col_idx, value=val)
-        c.font = example_font
-        c.fill = example_fill
+        c = ws.cell(row=example_row, column=col_idx, value=val)
+        if col_idx <= n_amarillas:
+            # Celda amarilla: fuente oscura (no la del example_fill) para que se lea
+            c.font = yellow_font
+            c.fill = yellow_fill
+        else:
+            c.font = example_font
+            c.fill = example_fill
         c.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
         c.border = border
 
-    # Filas vacías para que se vea la estructura
-    for r in range(6, 12):
+    # ─── Filas vacías para estructura ───
+    # Mantener el mismo color de fondo en celdas vacías para que se vea la "tabla" coloreada
+    start_empty = example_row + 1
+    end_empty = start_empty + 6  # 6 filas vacías para que el cliente capture
+    for r in range(start_empty, end_empty):
         for col_idx in range(1, len(info["headers"]) + 1):
             c = ws.cell(row=r, column=col_idx, value="")
+            if col_idx <= n_amarillas:
+                c.fill = yellow_fill  # también amarillo en vacías
             c.border = border
             c.alignment = Alignment(vertical="center", wrap_text=True)
 
-    # Ajustar anchos de columna según contenido
+    # ─── Anchos de columna ───
     for col_idx, header in enumerate(info["headers"], 1):
         col_letter = get_column_letter(col_idx)
         max_len = max(
@@ -263,10 +385,46 @@ def download_plantilla_excel(tipo):
         )
         ws.column_dimensions[col_letter].width = min(max(max_len + 2, 14), 40)
 
-    # Congelar panel
-    ws.freeze_panes = "A5"
+    # ─── Insertar logo en la esquina superior izquierda ───
+    if has_logo:
+        try:
+            img = XLImage(str(logo_path))
+            # Logo chico: ~90 px de ancho, cabe en 1 columna sin forzarlo
+            target_width = 90
+            scale = target_width / img.width
+            img.width = int(img.width * scale)
+            img.height = int(img.height * scale)
+            # Anclar a la celda A1 (esquina superior izquierda) — se superpone
+            # con la celda A1, pero como el logo es pequeño, no tapa nada
+            img.anchor = "A1"
+            ws.add_image(img)
+        except Exception as e:
+            print(f"[download_plantilla_excel] No se pudo insertar logo: {e}")
 
-    # Guardar en memoria
+    # ─── Congelar panel ───
+    # Congela desde la primera columna (A) y la fila de headers
+    ws.freeze_panes = f"A{header_row + 1}"
+
+    # ─── Configuración de impresión ───
+    # Por defecto: orientación horizontal (landscape) para que quepan mejor las 14 columnas.
+    # NO escalamos a "fit to 1 page" porque reduce demasiado la letra.
+    # El usuario puede decidir si imprimir 1 o varias páginas desde Excel.
+    from openpyxl.worksheet.page import PageMargins
+
+    # Orientación horizontal (landscape)
+    ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
+    # Papel tamaño carta (Letter, común en México)
+    ws.page_setup.paperSize = ws.PAPERSIZE_LETTER
+    # Repetir la fila de headers en cada página al imprimir (útil si se imprime
+    # en varias páginas, la primera fila de headers aparece en todas)
+    ws.print_title_rows = f"{header_row}:{header_row}"
+    # Márgenes normales (no mínimos, para que la impresión respire)
+    ws.page_margins = PageMargins(left=0.7, right=0.7, top=0.75, bottom=0.75,
+                                   header=0.3, footer=0.3)
+    # Centrar horizontalmente
+    ws.print_options.horizontalCentered = True
+
+    # ─── Guardar ───
     buf = BytesIO()
     wb.save(buf)
     buf.seek(0)

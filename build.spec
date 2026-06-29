@@ -56,29 +56,67 @@ hiddenimports = [
     "playwright._impl._driver",
     "playwright._impl._registry",
     "playwright._impl._transport",
+    # greenlet y _greenlet son DLLs nativos críticos para Playwright
+    # Si Windows los bloquea al cargar, el binario crashea al arrancar
+    "greenlet",
+    "_greenlet",
     "pkg_resources.py2_warn",
 ]
 
 # ─── Binarios adicionales: chromium de Playwright ───
-# Localizar la carpeta de browsers de Playwright dentro del venv
+# PyInstaller NO incluye los binarios de Playwright automáticamente.
+# Hay que detectar dónde está instalado y meterlo al bundle.
+# El path varía por OS:
+#   - Linux: ~/.cache/ms-playwright/
+#   - Windows: %LOCALAPPDATA%\ms-playwright\  (típicamente C:\Users\X\AppData\Local\ms-playwright\)
+#   - macOS: ~/Library/Caches/ms-playwright/
+import os
 import subprocess
+
+def find_playwright_browsers():
+    """Encuentra la carpeta de browsers de Playwright según plataforma."""
+    candidates = []
+    if sys.platform == "win32":
+        # Windows: %LOCALAPPDATA%\ms-playwright
+        local_app = os.environ.get("LOCALAPPDATA", "")
+        if local_app:
+            candidates.append(Path(local_app) / "ms-playwright")
+        # Fallback: %USERPROFILE%\AppData\Local\ms-playwright
+        userprofile = os.environ.get("USERPROFILE", "")
+        if userprofile:
+            candidates.append(Path(userprofile) / "AppData" / "Local" / "ms-playwright")
+    elif sys.platform == "darwin":
+        candidates.append(Path.home() / "Library" / "Caches" / "ms-playwright")
+    else:
+        # Linux
+        candidates.append(Path.home() / ".cache" / "ms-playwright")
+
+    for c in candidates:
+        if c.exists():
+            return c
+    return None
+
 try:
-    result = subprocess.run(
-        [sys.executable, "-m", "playwright", "install", "--dry-run", "chromium"],
-        capture_output=True, text=True, timeout=10
-    )
-    # Buscar carpeta ms-playwright en el home del usuario
-    import os
-    playwright_browsers = Path.home() / ".cache" / "ms-playwright"
-    if playwright_browsers.exists():
-        # Buscar la subcarpeta de chromium
-        for d in playwright_browsers.iterdir():
+    playwright_dir = find_playwright_browsers()
+    if playwright_dir and playwright_dir.exists():
+        # Buscar las subcarpetas de chromium (chromium, chromium_headless_shell, etc.)
+        for d in playwright_dir.iterdir():
             if d.is_dir() and "chromium" in d.name.lower():
-                datas.append((str(d), f"_ms-playwright/{d.name}"))
-                print(f"[build.spec] Incluyendo browser: {d}")
-                break
+                # En Windows el path destino NO debe tener subcarpeta intermedia
+                # porque Playwright busca rutas relativas fijas
+                dest = "_ms-playwright/" + d.name
+                datas.append((str(d), dest))
+                print(f"[build.spec] Incluyendo browser: {d} -> {dest}")
+            elif d.is_dir() and "ffmpeg" in d.name.lower():
+                # ffmpeg lo necesita Playwright para video (no lo usamos pero por si)
+                datas.append((str(d), "_ms-playwright/" + d.name))
+                print(f"[build.spec] Incluyendo ffmpeg: {d}")
+    else:
+        print(f"[build.spec] ADVERTENCIA: no se encontró carpeta de Playwright")
+        print(f"[build.spec] Buscado en: {[str(c) for c in candidates]}")
+        print(f"[build.spec] Ejecuta primero: playwright install chromium")
 except Exception as e:
-    print(f"[build.spec] No se pudo localizar Playwright browser: {e}")
+    print(f"[build.spec] Error localizando Playwright browser: {e}")
 
 a = Analysis(
     [str(BASE / "app.py")],
