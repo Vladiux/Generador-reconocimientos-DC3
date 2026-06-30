@@ -44,15 +44,15 @@ jobs:
           python-version: "3.11"
           cache: "pip"
 
-      - name: 📂 Crear carpeta assets si no existe
+      - name: 📂 Verificar íconos
         shell: bash
         run: |
           mkdir -p assets
-          if [ ! -f "assets/agasi_icon.ico" ]; then
-            echo "⚠️  assets/agasi_icon.ico no existe, generando placeholder..."
-            python -c "from PIL import Image; import os; os.makedirs('assets', exist_ok=True); img = Image.new('RGBA', (256, 256), (26, 71, 134, 255)); img.save('assets/agasi_icon.ico', format='ICO', sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)]); img.save('assets/agasi_icon_256.png'); print('Icono placeholder generado')"
+          if [ ! -f "assets/agasi_icon_256.ico" ]; then
+            echo "❌ ERROR: assets/agasi_icon_256.ico no existe. Agrégalo al repo."
+            exit 1
           else
-            echo "✅ assets/agasi_icon.ico existe"
+            echo "✅ assets/agasi_icon_256.ico existe"
           fi
 
       # ─── Limpieza preventiva ───
