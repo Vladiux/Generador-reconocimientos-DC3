@@ -17,6 +17,8 @@ Esta carpeta contiene todo lo necesario para empaquetar **Generador de Certifica
 - [Distribuir el ejecutable](#-distribuir-el-ejecutable)
 - [Iconos](#-iconos)
 - [Cómo funciona `build.spec`](#-cómo-funciona-buildspec)
+- [Optimización de tamaño del ejecutable](#-optimización-de-tamaño-del-ejecutable)
+- [Ventana propia vs consola](#-ventana-propia-vs-consola)
 - [Troubleshooting](#-troubleshooting)
 
 ---
@@ -390,6 +392,229 @@ El spec de PyInstaller está pensado para ser **cross-platform** (la misma confi
 - **Agregaste una carpeta de assets:** agrégala a `datas`
 - **Quieres un icono más reciente:** regenera los iconos y vuelve a compilar
 - **Quieres un .exe sin consola (silent):** cambia `console=True` a `console=False`
+
+---
+
+## 📦 Optimización de tamaño del ejecutable
+
+### Estado actual (sin optimizar)
+
+| Componente | Tamaño aprox | Nota |
+|------------|--------------|------|
+| Python + Flask + openpyxl | ~30 MB | Runtime base |
+| **Chromium** (versión usada) | ~70 MB | Playwright, para renderizar PDFs |
+| **Chromium headless_shell** (versiones extra) | ~140 MB | **← duplicado, se pueden quitar** |
+| ffmpeg + deps varias | ~50 MB | Codecs de Playwright |
+| Plantillas + logos + assets | ~5 MB | Recursos de la app |
+| **TOTAL .exe** | **~170-350 MB** | Varía según cuántas versiones de Chromium se metan |
+
+**El problema:** cuando corres `playwright install`, deja **múltiples versiones** de Chromium en `~/.cache/ms-playwright/`. Mi `build.spec` actual agarra TODO lo que contenga "chromium" en el nombre, sin filtrar. Resultado: 2-3 versiones de Chromium empaquetadas = 200+ MB de puro browser engine.
+
+### Plan de optimización por niveles
+
+#### 🟢 Nivel 1: Empaquetar SOLO UNA versión de Chromium (~80-100 MB)
+
+**Lo más fácil, sin tocar el código de la app.** Solo cambias el `build.spec` para que incluya solo la versión más reciente de Chromium, no todas.
+
+**Modificación al `build.spec`:** reemplazar el bloque que itera sobre `playwright_dir.iterdir()` por esto:
+
+```python
+# Buscar solo la versión MÁS NUEVA de chromium
+chromium_dirs = sorted([
+    d for d in playwright_dir.iterdir()
+    if d.is_dir() and d.name.startswith("chromium-")
+], key=lambda d: int(d.name.split("-")[1]) if d.name.split("-")[1].isdigit() else 0, reverse=True)
+
+# Tomar solo la primera (la más nueva)
+if chromium_dirs:
+    d = chromium_dirs[0]
+    datas.append((str(d), f"_ms-playwright/{d.name}"))
+    print(f"[build.spec] Solo la versión más nueva: {d.name}")
+```
+
+**Resultado esperado:** ~80-100 MB (en vez de 170-350 MB). El PDF sale idéntico porque todas las versiones de Chromium renderizan igual.
+
+**Riesgo:** Bajo. Si por alguna razón la versión más nueva tiene un bug, podemos cambiar a la penúltima cambiando `chromium_dirs[0]` a `chromium_dirs[1]`.
+
+---
+
+#### 🟡 Nivel 2: Usar Chromium headless_shell en vez de Chromium completo (~50-70 MB)
+
+Chromium headless_shell es el motor de renderizado SIN interfaz gráfica. Como nosotros solo necesitamos generar PDFs (no navegar visualmente), no necesitamos la UI de Chromium. headless_shell hace exactamente lo mismo pero pesa **la mitad**.
+
+**Modificación al `build.spec`:** (igual que Nivel 1 pero filtrando `chromium_headless_shell-` en vez de `chromium-`)
+
+```python
+chromium_dirs = sorted([
+    d for d in playwright_dir.iterdir()
+    if d.is_dir() and d.name.startswith("chromium_headless_shell-")
+], key=lambda d: int(d.name.split("-")[-1]) if d.name.split("-")[-1].isdigit() else 0, reverse=True)
+```
+
+Y en `app.py` (donde se llama Playwright):
+
+```python
+# Antes:
+browser = p.chromium.launch(args=["--allow-file-access-from-files"])
+# Después:
+browser = p.chromium.launch(
+    args=["--allow-file-access-from-files", "--headless=new"],
+)
+```
+
+**Resultado esperado:** ~50-70 MB.
+
+**Riesgo:** Medio. Algunas features muy específicas (poco probables que uses) podrían no funcionar. Para PDFs normales, no hay diferencia.
+
+---
+
+#### 🟠 Nivel 3: Usar el Chrome/Edge ya instalado del cliente (~30 MB)
+
+**Cambio más radical.** En vez de empaquetar NADA de Chromium, el binario busca Chrome o Edge en la máquina del cliente y lo usa. El binario queda ligero como una pluma.
+
+**Modificación en `app.py` — función `_generar_pdf_playwright`:**
+
+```python
+import platform
+import os as os_mod
+
+def _generar_pdf_playwright(html_content, output_path, single_page=False):
+    system = platform.system()
+    if system == "Windows":
+        chrome_paths = [
+            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+            r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        ]
+    elif system == "Darwin":
+        chrome_paths = [
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+            "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+        ]
+    else:
+        chrome_paths = [
+            "/usr/bin/google-chrome",
+            "/usr/bin/google-chrome-stable",
+            "/usr/bin/microsoft-edge",
+            "/usr/bin/chromium-browser",
+        ]
+
+    chrome_path = None
+    for path in chrome_paths:
+        if os_mod.path.exists(path):
+            chrome_path = path
+            break
+
+    if not chrome_path:
+        raise FileNotFoundError(
+            "No se encontró Chrome ni Edge. "
+            "Por favor instala Google Chrome desde https://www.google.com/chrome"
+        )
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            executable_path=chrome_path,
+            args=["--allow-file-access-from-files"]
+        )
+        # ... resto del código igual
+```
+
+**Resultado esperado:** ~30 MB total.
+
+**Riesgo:** Alto.
+- Si el cliente NO tiene Chrome ni Edge, la app falla con error claro (pero sí falla)
+- Diferentes versiones de Chrome pueden dar PDFs ligeramente distintos
+- El .exe ya no es 100% standalone
+
+**Cuándo vale la pena:** Cuando distribuyas a muchos usuarios. **Para tu caso (3 usuarios + 1 cliente), NO vale la pena.**
+
+---
+
+#### 🔴 Nivel 4: Edge WebView2 (solo Windows, ~30 MB)
+
+Similar al nivel 3 pero usando el motor de Edge embebido en Windows 10/11. NO funciona en Mac ni Linux.
+
+**No lo recomiendo** porque rompe tu soporte multiplataforma.
+
+---
+
+### 🎯 ¿Cuál implementar?
+
+| Si quieres... | Nivel | Tamaño | Esfuerzo |
+|---------------|-------|--------|----------|
+| Que siga funcionando en cualquier Windows sin nada extra | 0 (dejar así) | ~170 MB | 0 min |
+| Bajar a 80-100 MB sin riesgo | **Nivel 1** ⭐ | ~80-100 MB | 15 min |
+| Bajar a 50-70 MB, requiere probar | Nivel 2 | ~50-70 MB | 1-2 horas |
+| Bajar a 30 MB, requiere que el cliente tenga Chrome | Nivel 3 | ~30 MB | 3-4 horas |
+| Mínimo absoluto, solo Windows | Nivel 4 | ~30 MB | 5+ horas |
+
+**Mi recomendación honesta: Nivel 1.** Bajo el .exe de 350 MB a ~80-100 MB, sin riesgo y sin cambios en el comportamiento.
+
+---
+
+## 🪟 Ventana propia vs consola
+
+### Estado actual
+
+Cuando ejecutas `GeneradorAGASI.exe` ahora mismo:
+- ✅ Se abre la app en el navegador (`http://127.0.0.1:8765`)
+- ✅ También se abre una **ventana de consola negra** (CMD) que muestra los logs del servidor
+
+### ¿Por qué hay consola?
+
+Es intencional en el `build.spec`:
+```python
+exe = EXE(
+    ...
+    console=True,  # ← esta línea hace que se abra la ventana negra
+)
+```
+
+**Ventaja:** Si hay un error, el usuario puede ver QUÉ PASÓ y mandarte screenshot de los logs.
+
+**Desventaja:** Se ve "poco pro" — el cliente espera solo una ventana limpia.
+
+### ¿Cómo se quita?
+
+**Cambio de 1 línea en `build.spec`:**
+
+```python
+console=False,  # ← cambia a False para ocultar la consola
+```
+
+### ¿Qué pasa si oculto la consola y hay un error?
+
+- El .exe se abre, **el navegador SÍ se abre** (eso lo maneja Flask con `webbrowser.open()`)
+- Si hay un error, **la ventana negra NO se ve** — el .exe se cierra silenciosamente
+- El usuario ve "no pasó nada" y se queda con cara de WTF
+
+### Solución: redirigir logs a un archivo
+
+Si ocultas la consola, **escribe los logs a un archivo** para poder debuggear después:
+
+```python
+# En app.py, al inicio:
+import logging
+log_file = RUNTIME_DIR / "app.log"
+logging.basicConfig(
+    filename=str(log_file),
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s"
+)
+```
+
+Así si el .exe falla, puedes pedirle al usuario que te mande el archivo `app.log` que está al lado del ejecutable.
+
+### Mi recomendación
+
+| Escenario | Recomendación |
+|-----------|---------------|
+| Lo usa tu equipo interno | Dejar la consola. Tú la necesitas para debuggear |
+| Lo va a usar el cliente final | Ocultar la consola + logs a archivo. Se ve más profesional |
+| Ambos | Ocultar la consola + logs a archivo. Tú puedes abrir el `app.log` cuando necesites debuggear |
+
+**Si quieres que lo cambie ahora, dime:** "oculta la consola" y lo modifico en 30 segundos.
 
 ---
 

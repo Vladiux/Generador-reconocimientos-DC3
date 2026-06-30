@@ -5,9 +5,18 @@
 <style>
   @page { size: A4 landscape; margin: 0; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  /* ─── Fuentes self-hosted (Inter cuerpo, Rajdhani títulos) ─── */
+  @font-face { font-family: 'Inter'; src: url('assets/fonts/inter/Inter-Regular.ttf') format('truetype'); font-weight: 400; font-style: normal; }
+  @font-face { font-family: 'Inter'; src: url('assets/fonts/inter/Inter-SemiBold.ttf') format('truetype'); font-weight: 600; font-style: normal; }
+  @font-face { font-family: 'Inter'; src: url('assets/fonts/inter/Inter-Bold.ttf') format('truetype'); font-weight: 700; font-style: normal; }
+  @font-face { font-family: 'Rajdhani'; src: url('assets/fonts/rajdhani/Rajdhani-Medium.ttf') format('truetype'); font-weight: 500; font-style: normal; }
+  @font-face { font-family: 'Rajdhani'; src: url('assets/fonts/rajdhani/Rajdhani-SemiBold.ttf') format('truetype'); font-weight: 600; font-style: normal; }
+  @font-face { font-family: 'Rajdhani'; src: url('assets/fonts/rajdhani/Rajdhani-Bold.ttf') format('truetype'); font-weight: 700; font-style: normal; }
+
   body {
     width: 297mm; height: 210mm;
-    font-family: 'Georgia', 'Times New Roman', serif;
+    font-family: 'Inter', 'Arial', sans-serif;
     background: #fff;
     position: relative; overflow: hidden;
   }
@@ -39,19 +48,16 @@
   }
 
   .header { display: flex; flex-direction: column; align-items: center; gap: 3mm; }
-  .logo-txt {
-    font-size: 13pt; font-weight: bold; letter-spacing: 3px; color: #8b6914;
-  }
-  .logo-sub {
-    font-size: 7pt; color: #888; letter-spacing: 1px; text-transform: uppercase;
-  }
+  .logo-agasi { width: 55mm; height: auto; }
 
   .titulo {
-    font-size: 32pt; font-weight: bold; color: #8b6914; letter-spacing: 6px;
+    font-family: 'Rajdhani', 'Arial', sans-serif;
+    font-size: 34pt; font-weight: 700; color: #8b6914; letter-spacing: 6px;
     margin-top: 4mm;
   }
   .subtitulo {
-    font-size: 11pt; color: #b8860b; letter-spacing: 3px;
+    font-family: 'Rajdhani', 'Arial', sans-serif;
+    font-size: 12pt; font-weight: 500; color: #b8860b; letter-spacing: 4px;
     text-transform: uppercase; margin-top: 1mm;
   }
 
@@ -60,14 +66,16 @@
     align-items: center; justify-content: center; gap: 3mm;
   }
   .nombre {
-    font-size: 26pt; font-weight: bold; color: #1a1a2e;
+    font-family: 'Rajdhani', 'Arial', sans-serif;
+    font-size: 30pt; font-weight: 600; color: #1a1a2e;
     border-bottom: 2px solid #daa520; padding-bottom: 2mm; min-width: 60%;
   }
   .desc {
     font-size: 11pt; color: #444; max-width: 75%; line-height: 1.5;
   }
   .curso-txt {
-    font-size: 13pt; font-weight: bold; color: #8b6914;
+    font-family: 'Rajdhani', 'Arial', sans-serif;
+    font-size: 15pt; font-weight: 600; color: #8b6914;
   }
 
   .footer {
@@ -83,6 +91,10 @@
   .folio {
     position: absolute; bottom: 11mm; right: 18mm;
     font-size: 7pt; color: #aaa;
+  }
+  .stps {
+    position: absolute; bottom: 11mm; left: 18mm;
+    font-size: 7pt; color: #888; letter-spacing: 0.5px;
   }
 </style>
 </head>
@@ -117,8 +129,7 @@
 
   <div class="contenido">
     <div class="header">
-      <div class="logo-txt">AGASI</div>
-      <div class="logo-sub">Asesoría, Gestión Ambiental y Servicios Industriales</div>
+      <img class="logo-agasi" src="assets/AGASI.png" alt="AGASI">
     </div>
     <div class="cuerpo">
       <div class="titulo">RECONOCIMIENTO</div>
@@ -138,11 +149,12 @@
       <div class="firma">
         <img class="firma-img" src="firmas/director.png" alt="" onerror="this.style.display='none'">
         <div class="firma-linea"></div>
-        <div class="firma-nombre">Ing. Alejandro García Salinas</div>
-        <div class="firma-puesto">Director General</div>
+        <div class="firma-nombre">{{director_nombre}}</div>
+        <div class="firma-puesto">{{director_puesto}}</div>
       </div>
     </div>
   </div>
+  <div class="stps">REG.STPS: {{reg_stps}}</div>
   <div class="folio">Folio: {{folio}}</div>
 </body>
 </html>

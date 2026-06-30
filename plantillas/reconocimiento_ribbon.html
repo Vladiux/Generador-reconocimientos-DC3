@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: A4 landscape; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  /* ─── Fuentes self-hosted (Inter cuerpo, Rajdhani títulos) ─── */
+  @font-face { font-family: 'Inter'; src: url('assets/fonts/inter/Inter-Regular.ttf') format('truetype'); font-weight: 400; font-style: normal; }
+  @font-face { font-family: 'Inter'; src: url('assets/fonts/inter/Inter-SemiBold.ttf') format('truetype'); font-weight: 600; font-style: normal; }
+  @font-face { font-family: 'Inter'; src: url('assets/fonts/inter/Inter-Bold.ttf') format('truetype'); font-weight: 700; font-style: normal; }
+  @font-face { font-family: 'Rajdhani'; src: url('assets/fonts/rajdhani/Rajdhani-Medium.ttf') format('truetype'); font-weight: 500; font-style: normal; }
+  @font-face { font-family: 'Rajdhani'; src: url('assets/fonts/rajdhani/Rajdhani-SemiBold.ttf') format('truetype'); font-weight: 600; font-style: normal; }
+  @font-face { font-family: 'Rajdhani'; src: url('assets/fonts/rajdhani/Rajdhani-Bold.ttf') format('truetype'); font-weight: 700; font-style: normal; }
+
+  body {
+    width: 297mm; height: 210mm;
+    font-family: 'Inter', 'Arial', sans-serif;
+    color: #1a1a2e; background: #fff;
+    position: relative; overflow: hidden;
+  }
+
+  /* Cinta decorativa a la derecha (Certificado 1.svg) */
+  .cinta {
+    position: absolute; right: 0; top: 0;
+    height: 210mm; width: auto;
+  }
+
+  /* Logo AGASI (imagen) */
+  .logo-agasi { width: 55mm; height: auto; }
+
+  /* Registro STPS */
+  .stps {
+    position: absolute; bottom: 10mm; left: 20mm;
+    font-size: 7.5pt; color: #555; letter-spacing: 0.5px;
+    z-index: 2;
+  }
+
+  /* Texto a la izquierda, dejando espacio para la cinta */
+  .contenido {
+    position: absolute; left: 0; top: 0;
+    width: 165mm; height: 210mm;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 28mm 15mm 22mm 20mm;
+    text-align: center; gap: 3mm;
+  }
+
+  .header { display: flex; flex-direction: column; align-items: center; gap: 1mm; margin-bottom: 2mm; margin-top: 6mm; }
+  .logo-agasi { width: 50mm; height: auto; }
+
+  .titulo { font-family: 'Rajdhani', 'Arial', sans-serif; font-size: 34pt; font-weight: 700; color: #018baa; letter-spacing: 6px; }
+  .subtitulo { font-family: 'Rajdhani', 'Arial', sans-serif; font-size: 12pt; font-weight: 500; color: #888; letter-spacing: 4px; text-transform: uppercase; }
+
+  .cuerpo { display: flex; flex-direction: column; align-items: center; gap: 3mm; }
+  .nombre {
+    font-family: 'Rajdhani', 'Arial', sans-serif;
+    font-size: 26pt; font-weight: 600; color: #1a1a2e;
+    border-bottom: 1.5px solid #018baa; padding-bottom: 2mm; min-width: 70%;
+  }
+  .desc { font-size: 10pt; color: #444; max-width: 85%; line-height: 1.5; }
+  .curso-txt { font-family: 'Rajdhani', 'Arial', sans-serif; font-size: 15pt; font-weight: 600; color: #018baa; }
+  .detalles { font-size: 9.5pt; color: #444; line-height: 1.6; }
+
+  .footer {
+    display: flex; justify-content: space-between;
+    align-items: flex-end; width: 100%;
+    padding: 0 5mm; gap: 8mm; margin-top: 4mm;
+  }
+  .firma { display: flex; flex-direction: column; align-items: center; gap: 1mm; flex: 1; }
+  .firma-img { height: 16mm; object-fit: contain; margin-bottom: 1mm; opacity: 0.9; }
+  .firma-linea { width: 38mm; border-top: 1px solid #333; padding-top: 1mm; }
+  .firma-nombre { font-size: 8pt; font-weight: bold; color: #333; }
+  .firma-puesto { font-size: 7pt; color: #666; }
+
+  .folio {
+    position: absolute; bottom: 10mm; right: 50mm;
+    font-size: 7.5pt; color: #555;
+    z-index: 2;
+  }
+</style>
+</head>
+<body>
+  <img class="cinta" src="plantillas/Reconocimientos/Certificado 1.png" alt="">
+
+  <div class="contenido">
+    <div class="header">
+      <img class="logo-agasi" src="assets/AGASI.png" alt="AGASI">
+    </div>
+
+    <div class="titulo">RECONOCIMIENTO</div>
+    <div class="subtitulo">Se otorga a</div>
+
+    <div class="cuerpo">
+      <div class="nombre">{{nombre}}</div>
+      <div class="desc">Por haber concluido satisfactoriamente el curso de capacitación:</div>
+      <div class="curso-txt">{{curso}}</div>
+      <div class="detalles">
+        Con una duración de <strong>{{duracion}}</strong> horas<br>
+        Celebrado en {{lugar}} el {{fecha}}
+      </div>
+    </div>
+
+    <div class="footer">
+      <div class="firma">
+        <img class="firma-img" src="firmas/instructor.png" alt="" onerror="this.style.display='none'">
+        <div class="firma-linea"></div>
+        <div class="firma-nombre">{{instructor}}</div>
+        <div class="firma-puesto">Instructor</div>
+      </div>
+      <div class="firma">
+        <img class="firma-img" src="firmas/director.png" alt="" onerror="this.style.display='none'">
+        <div class="firma-linea"></div>
+        <div class="firma-nombre">{{director_nombre}}</div>
+        <div class="firma-puesto">{{director_puesto}}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stps">REG.STPS: {{reg_stps}}</div>
+  <div class="folio">Folio: {{folio}}</div>
+</body>
+</html>

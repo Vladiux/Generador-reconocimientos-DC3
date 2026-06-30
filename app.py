@@ -29,6 +29,19 @@ from flask import (
 from openpyxl import load_workbook
 from playwright.sync_api import sync_playwright
 
+# Optimización: usar chromium_headless_shell (más liviano) en vez de chromium completo
+# headless_shell es el motor de renderizado SIN interfaz gráfica. Como solo
+# generamos PDFs (no navegación visual), headless_shell basta y ahorra ~70 MB.
+# Esto se aplica ANTES de hacer sync_playwright() para que use el headless_shell
+# que empaquetamos en el bundle.
+import os as _os
+_os.environ.setdefault("PLAYWRIGHT_CHROMIUM_USE_HEADLESS_NEW", "1")
+# Solo forzamos PLAYWRIGHT_BROWSERS_PATH cuando es bundle (recursos extraídos a _MEIPASS).
+# En dev mode dejamos que Playwright use su cache por defecto (~/.cache/ms-playwright)
+# para que funcione aunque la carpeta local _ms-playwright esté vacía.
+if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+    _os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", str(Path(sys._MEIPASS) / "_ms-playwright"))
+
 # ─── Config ───
 BASE_DIR = Path(__file__).parent.resolve()
 # Cuando se ejecuta como binario empaquetado por PyInstaller, los recursos
@@ -556,6 +569,10 @@ def preview_cert():
     data = request.json
     plantilla_nombre = data.get("plantilla")
     fila = data.get("fila", {})
+    config = data.get("config", {}) or {}
+
+    # Mezclar config del agente (STPS, director) en la fila
+    fila.update({k: v for k, v in config.items() if v})
 
     # Auto-generar folio si está vacío
     folio_raw = fila.get("folio", "")
@@ -594,9 +611,14 @@ def generate_batch():
     tmp_excel_path = data.get("tmp_path")
     mapeo = data.get("mapeo", {})  # {campo_cert: columna_excel}
     filas = data.get("filas", [])
+    config = data.get("config", {}) or {}  # {reg_stps, director_nombre, director_puesto}
 
     if not plantilla_nombre or not filas:
         return jsonify({"error": "Faltan datos: plantilla y filas"}), 400
+
+    # Mezclar config del agente en cada fila (STPS, director, etc.)
+    config_limpio = {k: v for k, v in config.items() if v}
+    filas_con_config = [{**config_limpio, **fila} for fila in filas]
 
     # Reiniciar estado
     batch_state = {
@@ -612,7 +634,7 @@ def generate_batch():
 
     # Thread en background
     t = threading.Thread(
-        target=_run_batch, args=(plantilla_nombre, filas, mapeo), daemon=True
+        target=_run_batch, args=(plantilla_nombre, filas_con_config, mapeo), daemon=True
     )
     t.start()
 
@@ -692,6 +714,10 @@ def _render_plantilla(nombre, datos):
 
     with open(path, "r", encoding="utf-8") as f:
         html = f.read()
+
+    # Defaults opcionales (antes de reemplazar, para que los placeholders
+    # como {{reg_stps}} siempre tengan un valor si vienen vacíos)
+    datos["reg_stps"] = (datos.get("reg_stps") or "JUVH8204083R3-005").strip()
 
     # Reemplazar {{campo}} con valor correspondiente
     for key, val in datos.items():
@@ -782,8 +808,11 @@ def _generar_pdf_playwright(html_content, output_path, single_page=False):
             filepath = firmas_dir / src.replace("firmas/", "", 1)
         elif src.startswith("static/"):
             filepath = static_dir / src.replace("static/", "", 1)
+        elif src.startswith("plantillas/"):
+            filepath = APP_ROOT / src
         else:
-            return full_tag
+            # Imagen suelta en la raíz del proyecto (ej. Gotita.png, AG_Principal.png)
+            filepath = APP_ROOT / src
         if not filepath.exists():
             return full_tag
         # Convertir a base64
@@ -808,14 +837,100 @@ def _generar_pdf_playwright(html_content, output_path, single_page=False):
 
     html_content = re_mod.sub(r'<img[^>]*src="[^"]+"[^>]*>', inline_image, html_content)
 
+    # Inlineado de fuentes en @font-face { src: url(...) } → data:font/ttf;base64,...
+    # Necesario porque Playwright set_content usa origen data: y no puede cargar
+    # recursos locales por path relativo. Soporta assets/ y rutas en raíz.
+    def inline_font(match):
+        full = match.group(0)
+        url_match = re_mod.search(r"""url\(\s*['"]?([^'")]+)['"]?\s*\)""", full)
+        if not url_match:
+            return full
+        url = url_match.group(1)
+        # Solo inlinea paths locales con extensión de fuente
+        if not re_mod.search(r"\.(ttf|otf|woff2?|eot)(\?|$)", url, re_mod.IGNORECASE):
+            return full
+        if url.startswith(("data:", "http://", "https://", "file://")):
+            return full
+        filepath = APP_ROOT / url
+        if not filepath.exists():
+            return full
+        try:
+            data = filepath.read_bytes()
+            ext = filepath.suffix.lower().lstrip(".")
+            mime = {"ttf": "font/ttf", "otf": "font/otf", "woff": "font/woff", "woff2": "font/woff2"}.get(ext, "font/ttf")
+            b64 = base64.b64encode(data).decode("ascii")
+            new_url = f"url(data:{mime};base64,{b64})"
+            return full.replace(url, new_url)
+        except Exception:
+            return full
+
+    html_content = re_mod.sub(r"url\([^)]+\)", inline_font, html_content)
+
     # Convertir href a file:// (links, no necesitan base64)
     firmas_url = "file://" + urllib.parse.quote(str(firmas_dir), safe="/:") + "/"
     static_url = "file://" + urllib.parse.quote(str(static_dir), safe="/:") + "/"
     html_content = html_content.replace('href="firmas/', f'href="{firmas_url}')
     html_content = html_content.replace('href="static/', f'href="{static_url}')
 
+    # Usar chromium_headless_shell (más liviano) en vez de chromium completo
+    # Buscamos el headless_shell dentro del bundle (extraído por PyInstaller)
+    bundle_root = getattr(sys, "_MEIPASS", BASE_DIR)
+    chrome_exec = None
+    candidates = []
+
+    # 1) Carpeta local del proyecto (build.spec pone el browser aquí)
+    for sub in (Path(bundle_root) / "_ms-playwright").glob("chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell"):
+        candidates.append(sub)
+    for sub in (Path(bundle_root) / "_ms-playwright").glob("chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe"):
+        candidates.append(sub)
+
+    # 2) Ruta estándar de PyInstaller para Playwright (driver/.local-browsers)
+    #    Esta es la que usa el bundled cuando playwright se importa sin env var
+    for sub in (Path(bundle_root) / "playwright" / "driver" / "package" / ".local-browsers").glob("chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell"):
+        candidates.append(sub)
+    for sub in (Path(bundle_root) / "playwright" / "driver" / "package" / ".local-browsers").glob("chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe"):
+        candidates.append(sub)
+
+    # 3) Fallback .local-browsers en la raíz del bundle
+    for sub in (Path(bundle_root) / ".local-browsers").glob("chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell"):
+        candidates.append(sub)
+    for sub in (Path(bundle_root) / ".local-browsers").glob("chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe"):
+        candidates.append(sub)
+
+    # 4) Cache global del sistema (~/.cache/ms-playwright) — dev mode
+    for cache in [Path.home() / ".cache" / "ms-playwright"]:
+        if cache.exists():
+            for sub in cache.glob("chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell"):
+                candidates.append(sub)
+            for sub in cache.glob("chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe"):
+                candidates.append(sub)
+
+    # 5) Windows: %LOCALAPPDATA%\ms-playwright
+    if os.name == "nt":
+        local_app = os.environ.get("LOCALAPPDATA")
+        if local_app:
+            cache = Path(local_app) / "ms-playwright"
+            if cache.exists():
+                for sub in cache.glob("chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell"):
+                    candidates.append(sub)
+                for sub in cache.glob("chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe"):
+                    candidates.append(sub)
+
+    for c in candidates:
+        if c.exists():
+            chrome_exec = str(c)
+            break
+
     with sync_playwright() as p:
-        browser = p.chromium.launch(args=["--allow-file-access-from-files"])
+        if chrome_exec:
+            # Headless_shell: ~70 MB más liviano que el chromium completo
+            browser = p.chromium.launch(
+                executable_path=chrome_exec,
+                args=["--allow-file-access-from-files"]
+            )
+        else:
+            # Fallback: chromium completo (más pesado pero siempre presente)
+            browser = p.chromium.launch(args=["--allow-file-access-from-files"])
         page = browser.new_page()
         page.set_content(html_content, wait_until="networkidle")
 
@@ -846,8 +961,50 @@ def _run_batch(plantilla_nombre, filas, mapeo):
     batch_state["output_dir"] = str(output_dir)
 
     try:
+        # ─── Buscar binario de chrome-headless-shell ───
+        # Mismas ubicaciones que en _generar_pdf_playwright
+        chrome_exec_batch = None
+        cands = []
+        for sub in (APP_ROOT / "_ms-playwright").glob("chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell"):
+            cands.append(sub)
+        for sub in (APP_ROOT / "_ms-playwright").glob("chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe"):
+            cands.append(sub)
+        for sub in (APP_ROOT / "playwright" / "driver" / "package" / ".local-browsers").glob("chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell"):
+            cands.append(sub)
+        for sub in (APP_ROOT / "playwright" / "driver" / "package" / ".local-browsers").glob("chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe"):
+            cands.append(sub)
+        for sub in (APP_ROOT / ".local-browsers").glob("chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell"):
+            cands.append(sub)
+        for sub in (APP_ROOT / ".local-browsers").glob("chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe"):
+            cands.append(sub)
+        for cache in [Path.home() / ".cache" / "ms-playwright"]:
+            if cache.exists():
+                for sub in cache.glob("chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell"):
+                    cands.append(sub)
+                for sub in cache.glob("chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe"):
+                    cands.append(sub)
+        if os.name == "nt":
+            local_app = os.environ.get("LOCALAPPDATA")
+            if local_app:
+                cache = Path(local_app) / "ms-playwright"
+                if cache.exists():
+                    for sub in cache.glob("chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell"):
+                        cands.append(sub)
+                    for sub in cache.glob("chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe"):
+                        cands.append(sub)
+        for c in cands:
+            if c.exists():
+                chrome_exec_batch = str(c)
+                break
+
         with sync_playwright() as p:
-            browser = p.chromium.launch(args=["--allow-file-access-from-files"])
+            if chrome_exec_batch:
+                browser = p.chromium.launch(
+                    executable_path=chrome_exec_batch,
+                    args=["--allow-file-access-from-files"]
+                )
+            else:
+                browser = p.chromium.launch(args=["--allow-file-access-from-files"])
 
             for i, datos in enumerate(filas):
                 if batch_state["status"] == "error":
@@ -885,6 +1042,7 @@ def _run_batch(plantilla_nombre, filas, mapeo):
                 import re as re_mod_batch
 
                 firmas_dir_batch = APP_ROOT / "firmas"
+                static_dir_batch = APP_ROOT / "static"
 
                 def inline_image_batch(match):
                     full_tag = match.group(0)
@@ -895,12 +1053,17 @@ def _run_batch(plantilla_nombre, filas, mapeo):
                     # Si ya es data URI (firmas del frontend), saltar
                     if src.startswith("data:"):
                         return full_tag
-                    filepath = (
-                        firmas_dir_batch / src.replace("firmas/", "", 1)
-                        if src.startswith("firmas/")
-                        else None
-                    )
-                    if not filepath or not filepath.exists():
+                    # Determinar archivo físico (mismos prefijos que _generar_pdf_playwright)
+                    if src.startswith("firmas/"):
+                        filepath = firmas_dir_batch / src.replace("firmas/", "", 1)
+                    elif src.startswith("static/"):
+                        filepath = static_dir_batch / src.replace("static/", "", 1)
+                    elif src.startswith("plantillas/"):
+                        filepath = APP_ROOT / src
+                    else:
+                        # Imagen suelta en la raíz del proyecto (ej. assets/AGASI.png, Gotita.png)
+                        filepath = APP_ROOT / src
+                    if not filepath.exists():
                         return full_tag
                     try:
                         data = filepath.read_bytes()
@@ -911,6 +1074,7 @@ def _run_batch(plantilla_nombre, filas, mapeo):
                                 "png": "image/png",
                                 "jpg": "image/jpeg",
                                 "jpeg": "image/jpeg",
+                                "gif": "image/gif",
                                 "svg": "image/svg+xml",
                             }.get(ext.lstrip("."), "image/png")
                         b64 = base64.b64encode(data).decode("ascii")
@@ -922,6 +1086,32 @@ def _run_batch(plantilla_nombre, filas, mapeo):
                 html = re_mod_batch.sub(
                     r'<img[^>]*src="[^"]+"[^>]*>', inline_image_batch, html
                 )
+
+                # Inlineado de fuentes (mismo que en _generar_pdf_playwright)
+                def inline_font_batch(match):
+                    full = match.group(0)
+                    url_match = re_mod_batch.search(r"""url\(\s*['"]?([^'")]+)['"]?\s*\)""", full)
+                    if not url_match:
+                        return full
+                    url = url_match.group(1)
+                    if not re_mod_batch.search(r"\.(ttf|otf|woff2?|eot)(\?|$)", url, re_mod_batch.IGNORECASE):
+                        return full
+                    if url.startswith(("data:", "http://", "https://", "file://")):
+                        return full
+                    filepath = APP_ROOT / url
+                    if not filepath.exists():
+                        return full
+                    try:
+                        data = filepath.read_bytes()
+                        ext = filepath.suffix.lower().lstrip(".")
+                        mime = {"ttf": "font/ttf", "otf": "font/otf", "woff": "font/woff", "woff2": "font/woff2"}.get(ext, "font/ttf")
+                        b64 = base64.b64encode(data).decode("ascii")
+                        new_url = f"url(data:{mime};base64,{b64})"
+                        return full.replace(url, new_url)
+                    except:
+                        return full
+
+                html = re_mod_batch.sub(r"url\([^)]+\)", inline_font_batch, html)
 
                 # Detectar orientación y formato
                 is_landscape = "landscape" in html.lower()

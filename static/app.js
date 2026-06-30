@@ -29,7 +29,17 @@ const CAMPOS_CERT = [
     { key: "firma_representante", label: "Ruta firma del representante", required: false },
     { key: "representante_trabajadores", label: "Nombre rep. trabajadores", required: false },
     { key: "mostrar_rep_trabajadores", label: "Incluir rep. trabajadores?", required: false },
+    { key: "reg_stps", label: "Registro STPS (opcional)", required: false },
 ];
+
+// ─── Datos del agente (STPS + director) — se aplican a todo el lote ───
+function getAgentConfig() {
+    return {
+        reg_stps: document.getElementById("cfgRegStps")?.value?.trim() || "JUVH8204083R3-005",
+        director_nombre: document.getElementById("cfgDirectorNombre")?.value?.trim() || "Ing. Alejandro García Salinas",
+        director_puesto: document.getElementById("cfgDirectorPuesto")?.value?.trim() || "Director General",
+    };
+}
 
 // ─── Descargar plantilla Excel vacía ───
 function descargarPlantilla(tipo) {
@@ -216,7 +226,7 @@ function toggleMapping() {
 // Configuración de grupos de plantillas
 const TEMPLATE_GROUPS = [
     { name: "DC-3", icon: "📋", desc: "Formato oficial STPS", templates: ["dc3"] },
-    { name: "Reconocimiento", icon: "📜", desc: "Diplomas y reconocimientos", templates: ["reconocimiento_clasico", "reconocimiento_moderno"] },
+    { name: "Reconocimiento", icon: "📜", desc: "Diplomas y reconocimientos", templates: ["reconocimiento_clasico", "reconocimiento_moderno", "reconocimiento_marco", "reconocimiento_ribbon", "reconocimiento_geometrico"] },
     { name: "Constancia", icon: "📄", desc: "Constancia simple", templates: ["constancia"] },
 ];
 
@@ -225,6 +235,9 @@ const TEMPLATE_INFO = {
     "dc3": { icon: "📋", desc: "Formato oficial STPS · 2 páginas" },
     "reconocimiento_clasico": { icon: "📜", desc: "Estilo clásico con bordes dorados" },
     "reconocimiento_moderno": { icon: "✨", desc: "Estilo minimalista con banda azul" },
+    "reconocimiento_marco": { icon: "🖼️", desc: "Marco azul con doble línea" },
+    "reconocimiento_ribbon": { icon: "🎗️", desc: "Cinta teal lateral" },
+    "reconocimiento_geometrico": { icon: "◆", desc: "Acentos geométricos en esquina" },
     "constancia": { icon: "📄", desc: "Constancia de capacitación simple" },
 };
 
@@ -312,6 +325,15 @@ function selectTemplate(name) {
     }
 
     state.selectedTemplate = name;
+
+    // El panel de "Datos del agente" solo aplica a Reconocimiento y Constancia,
+    // no al DC-3 (que no lleva STPS ni director en su layout)
+    const panel = document.getElementById("agentConfigPanel");
+    if (panel) {
+        const requiereAgente = name !== "dc3";
+        panel.style.display = requiereAgente ? "" : "none";
+    }
+
     detectarCampos(name).then(campos => {
         state.camposDisponibles = campos;
         construirMapeo();
@@ -603,7 +625,11 @@ document.getElementById("btnPreview").addEventListener("click", async () => {
         const res = await fetch("/api/preview", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ plantilla: state.selectedTemplate, fila: datos }),
+            body: JSON.stringify({
+                plantilla: state.selectedTemplate,
+                fila: datos,
+                config: getAgentConfig(),
+            }),
         });
 
         if (res.ok) {
@@ -679,6 +705,7 @@ document.getElementById("btnGenerate").addEventListener("click", async () => {
             filas: filas,
             mapeo: state.mapping,
             tmp_path: state.excelData.tmp_path,
+            config: getAgentConfig(),
         }),
     }).then(res => res.json()).then(data => {
         if (data.error) {

@@ -6,9 +6,17 @@
   @page { size: A4 landscape; margin: 0; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
+  /* ─── Fuentes self-hosted (Inter cuerpo, Rajdhani títulos) ─── */
+  @font-face { font-family: 'Inter'; src: url('assets/fonts/inter/Inter-Regular.ttf') format('truetype'); font-weight: 400; font-style: normal; }
+  @font-face { font-family: 'Inter'; src: url('assets/fonts/inter/Inter-SemiBold.ttf') format('truetype'); font-weight: 600; font-style: normal; }
+  @font-face { font-family: 'Inter'; src: url('assets/fonts/inter/Inter-Bold.ttf') format('truetype'); font-weight: 700; font-style: normal; }
+  @font-face { font-family: 'Rajdhani'; src: url('assets/fonts/rajdhani/Rajdhani-Medium.ttf') format('truetype'); font-weight: 500; font-style: normal; }
+  @font-face { font-family: 'Rajdhani'; src: url('assets/fonts/rajdhani/Rajdhani-SemiBold.ttf') format('truetype'); font-weight: 600; font-style: normal; }
+  @font-face { font-family: 'Rajdhani'; src: url('assets/fonts/rajdhani/Rajdhani-Bold.ttf') format('truetype'); font-weight: 700; font-style: normal; }
+
   body {
     width: 297mm; height: 210mm;
-    font-family: 'Arial', 'Helvetica', sans-serif;
+    font-family: 'Inter', 'Arial', sans-serif;
     color: #000; background: #fff;
     display: flex; flex-direction: column;
   }
@@ -24,12 +32,8 @@
   .banda-left {
     display: flex; flex-direction: column;
   }
-  .banda-sup .logo-txt {
-    font-size: 16pt; font-weight: bold; color: #fff; letter-spacing: 4px;
-  }
-  .banda-sup .logo-sub {
-    font-size: 7pt; color: rgba(255,255,255,0.85); letter-spacing: 1px;
-    margin-top: 1mm;
+  .banda-sup .logo-agasi {
+    height: 18mm; width: auto;
   }
   .banda-sup .folio-mod {
     font-size: 8pt; color: rgba(255,255,255,0.7);
@@ -50,7 +54,8 @@
   }
 
   .titulo-mod {
-    font-size: 30pt; font-weight: bold; color: #1a4786;
+    font-family: 'Rajdhani', 'Arial', sans-serif;
+    font-size: 34pt; font-weight: 700; color: #1a4786;
     letter-spacing: 5px; text-transform: uppercase;
   }
   .linea-oro {
@@ -62,14 +67,16 @@
     font-size: 11pt; color: #555; font-style: italic;
   }
   .nombre-mod {
-    font-size: 28pt; font-weight: bold; color: #1a1a2e;
+    font-family: 'Rajdhani', 'Arial', sans-serif;
+    font-size: 32pt; font-weight: 600; color: #1a1a2e;
     margin: 2mm 0;
   }
   .desc-mod {
     font-size: 11pt; color: #444; max-width: 70%; line-height: 1.5;
   }
   .curso-mod {
-    font-size: 14pt; font-weight: bold; color: #2563eb;
+    font-family: 'Rajdhani', 'Arial', sans-serif;
+    font-size: 16pt; font-weight: 600; color: #2563eb;
     margin: 1mm 0;
   }
 
@@ -83,19 +90,24 @@
   .firma-linea { width: 42mm; border-top: 1px solid #333; padding-top: 1mm; }
   .firma-nombre { font-size: 8pt; font-weight: bold; color: #333; }
   .firma-puesto { font-size: 7pt; color: #666; }
+
+  .stps {
+    position: absolute; bottom: 10mm; left: 16mm;
+    font-size: 7pt; color: #888; letter-spacing: 0.5px;
+  }
 </style>
 </head>
 <body>
   <div class="banda-sup">
     <div class="banda-left">
-      <div class="logo-txt">AGASI</div>
-      <div class="logo-sub">Asesoría, Gestión Ambiental y Servicios Industriales</div>
+      <img class="logo-agasi" src="assets/AGASI.png" alt="AGASI">
     </div>
     <div class="folio-mod">Folio: {{folio}}</div>
   </div>
 
   <div class="barra-lat"></div>
 
+  <div class="stps">REG.STPS: {{reg_stps}}</div>
   <div class="contenido">
     <div class="titulo-mod">Reconocimiento</div>
     <div class="linea-oro"></div>
@@ -115,8 +127,8 @@
       <div class="firma">
         <img class="firma-img" src="firmas/director.png" alt="" onerror="this.style.display='none'">
         <div class="firma-linea"></div>
-        <div class="firma-nombre">Ing. Alejandro García Salinas</div>
-        <div class="firma-puesto">Director General</div>
+        <div class="firma-nombre">{{director_nombre}}</div>
+        <div class="firma-puesto">{{director_puesto}}</div>
       </div>
     </div>
   </div>
