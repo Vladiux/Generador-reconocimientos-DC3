@@ -523,7 +523,7 @@ def upload_excel():
         ]
 
         header_idx = 0
-        for idx, row in enumerate(rows[:10]):  # Buscar solo en las primeras 10 filas
+        for idx, row in enumerate(rows[:30]):  # Buscar en las primeras 30 filas (DC-3 tiene ~18 líneas de instrucciones)
             row_text = " ".join(str(c).lower() for c in row if c)
             # Verificar que la fila tenga al menos 2 palabras clave (típico de headers)
             matches = sum(1 for kw in palabras_clave if kw in row_text)
