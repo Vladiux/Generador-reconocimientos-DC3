@@ -6,6 +6,13 @@ App local: sube Excel, elige plantilla, genera cientos de PDFs en segundos.
 
 import json
 import os
+
+# Optimización: usar chromium_headless_shell (más liviano) en vez de chromium completo
+# headless_shell es el motor de renderizado SIN interfaz gráfica. Como solo
+# generamos PDFs (no navegación visual), headless_shell basta y ahorra ~70 MB.
+# Esto se aplica ANTES de hacer sync_playwright() para que use el headless_shell
+# que empaquetamos en el bundle.
+import os as _os
 import sys
 import tempfile
 import threading
@@ -29,18 +36,14 @@ from flask import (
 from openpyxl import load_workbook
 from playwright.sync_api import sync_playwright
 
-# Optimización: usar chromium_headless_shell (más liviano) en vez de chromium completo
-# headless_shell es el motor de renderizado SIN interfaz gráfica. Como solo
-# generamos PDFs (no navegación visual), headless_shell basta y ahorra ~70 MB.
-# Esto se aplica ANTES de hacer sync_playwright() para que use el headless_shell
-# que empaquetamos en el bundle.
-import os as _os
 _os.environ.setdefault("PLAYWRIGHT_CHROMIUM_USE_HEADLESS_NEW", "1")
 # Solo forzamos PLAYWRIGHT_BROWSERS_PATH cuando es bundle (recursos extraídos a _MEIPASS).
 # En dev mode dejamos que Playwright use su cache por defecto (~/.cache/ms-playwright)
 # para que funcione aunque la carpeta local _ms-playwright esté vacía.
 if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-    _os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", str(Path(sys._MEIPASS) / "_ms-playwright"))
+    _os.environ.setdefault(
+        "PLAYWRIGHT_BROWSERS_PATH", str(Path(sys._MEIPASS) / "_ms-playwright")
+    )
 
 # ─── Config ───
 BASE_DIR = Path(__file__).parent.resolve()
@@ -58,7 +61,11 @@ else:
 PORT = 8765
 HOST = "127.0.0.1"
 
-app = Flask(__name__, template_folder=str(APP_ROOT / "templates"), static_folder=str(APP_ROOT / "static"))
+app = Flask(
+    __name__,
+    template_folder=str(APP_ROOT / "templates"),
+    static_folder=str(APP_ROOT / "static"),
+)
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50MB max upload
 
 # ─── Estado global del batch (en memoria, no DB) ───
@@ -130,20 +137,20 @@ PLANTILLAS_EXCEL = {
         # 🟢 = lo llena AGASI (datos del curso + control interno)
         # Todos los amarillos van juntos primero, sin intercalar.
         "headers": [
-            "Nombre",                    # 🟡 Apellido paterno, apellido materno, nombre(s)
-            "CURP",                      # 🟡 18 caracteres
-            "Puesto",                    # 🟡 Puesto del participante en la empresa
-            "Empresa (Razón Social)",    # 🟡 Razón social completa
-            "RFC (de la Empresa)",       # 🟡 12 caracteres - RFC de la empresa
-            "Representante Legal",       # 🟡 Quien firma como representante de la empresa
-            "Curso",                     # 🟢 Nombre del curso
-            "Duracion (hrs)",            # 🟢 Horas
-            "Fecha Inicio",              # 🟢 dd/mm/aaaa
-            "Fecha Fin",                 # 🟢 dd/mm/aaaa
-            "Area Tematica",             # 🟢 Código + nombre, ej: "6000 Seguridad"
-            "Ocupacion",                 # 🟢 Catálogo Nacional de Ocupaciones
-            "Instructor",                # 🟢 Nombre del instructor
-            "Folio",                     # 🟢 Opcional — si va vacío se genera automáticamente
+            "Nombre",  # 🟡 Apellido paterno, apellido materno, nombre(s)
+            "CURP",  # 🟡 18 caracteres
+            "Puesto",  # 🟡 Puesto del participante en la empresa
+            "Empresa (Razón Social)",  # 🟡 Razón social completa
+            "RFC (de la Empresa)",  # 🟡 12 caracteres - RFC de la empresa
+            "Representante Legal",  # 🟡 Quien firma como representante de la empresa
+            "Curso",  # 🟢 Nombre del curso
+            "Duracion (hrs)",  # 🟢 Horas
+            "Fecha Inicio",  # 🟢 dd/mm/aaaa
+            "Fecha Fin",  # 🟢 dd/mm/aaaa
+            "Area Tematica",  # 🟢 Código + nombre, ej: "6000 Seguridad"
+            "Ocupacion",  # 🟢 Catálogo Nacional de Ocupaciones
+            "Instructor",  # 🟢 Nombre del instructor
+            "Folio",  # 🟢 Opcional — si va vacío se genera automáticamente
         ],
         "ejemplo": [
             "López Hernández María Fernanda",
@@ -274,6 +281,7 @@ def download_plantilla_excel(tipo):
             "• En EMPRESA escriba la Razón Social completa.",
             "• En ÁREA TEMÁTICA escriba: CÓDIGO + NOMBRE   Ej: 6000 Seguridad",
             "• REPRESENTANTE LEGAL puede quedar vacío — si lo deja vacío, se usa el valor por defecto configurado en el sistema.",
+            "• Escribe la fecha con formato DD/MM/AAAA",
             "",
             "─── ¿QUIÉN LLENA CADA CAMPO? ───",
             "🟡  AMARILLO  →  Los llena el CLIENTE (usted):",
@@ -331,16 +339,17 @@ def download_plantilla_excel(tipo):
     if tipo in ("dc3", "reconocimiento", "constancia"):
         # Solo la agregamos si no está ya al inicio
         if not instr_lines or not instr_lines[0].startswith("💡"):
-            instr_lines.insert(0, "💡 Si no ves todo el texto, haz más grande la celda para ver todas las instrucciones completas.")
+            instr_lines.insert(
+                0,
+                "💡 Si no ves todo el texto, haz más grande la celda para ver todas las instrucciones completas.",
+            )
             instr_lines.insert(1, "")  # línea en blanco para separar
 
     instr_text = "\n".join(instr_lines)
     instr_cell = ws.cell(row=instr_start_row, column=instr_start_col, value=instr_text)
     # Instrucciones en NEGRITAS para que se lean bien (no en itálica)
     instr_cell.font = Font(name="Arial", size=9, bold=True, color="1F2937")
-    instr_cell.alignment = Alignment(
-        horizontal="left", vertical="top", wrap_text=True
-    )
+    instr_cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
     for r in range(instr_start_row, instr_end_row + 1):
         ws.row_dimensions[r].height = 22
 
@@ -432,8 +441,9 @@ def download_plantilla_excel(tipo):
     # en varias páginas, la primera fila de headers aparece en todas)
     ws.print_title_rows = f"{header_row}:{header_row}"
     # Márgenes normales (no mínimos, para que la impresión respire)
-    ws.page_margins = PageMargins(left=0.7, right=0.7, top=0.75, bottom=0.75,
-                                   header=0.3, footer=0.3)
+    ws.page_margins = PageMargins(
+        left=0.7, right=0.7, top=0.75, bottom=0.75, header=0.3, footer=0.3
+    )
     # Centrar horizontalmente
     ws.print_options.horizontalCentered = True
 
@@ -480,8 +490,17 @@ def upload_excel():
         else:
             wb = load_workbook(tmp.name, data_only=True)
             ws = wb.active
+
+            def _cell_str(c):
+                v = c.value
+                if v is None:
+                    return ""
+                if isinstance(v, datetime):
+                    return v.strftime("%d/%m/%Y")
+                return str(v)
+
             rows = [
-                [str(c.value) if c.value is not None else "" for c in row]
+                [_cell_str(c) for c in row]
                 for row in ws.iter_rows()
             ]
 
@@ -523,7 +542,9 @@ def upload_excel():
         ]
 
         header_idx = 0
-        for idx, row in enumerate(rows[:30]):  # Buscar en las primeras 30 filas (DC-3 tiene ~18 líneas de instrucciones)
+        for idx, row in enumerate(
+            rows[:30]
+        ):  # Buscar en las primeras 30 filas (DC-3 tiene ~18 líneas de instrucciones)
             row_text = " ".join(str(c).lower() for c in row if c)
             # Verificar que la fila tenga al menos 2 palabras clave (típico de headers)
             matches = sum(1 for kw in palabras_clave if kw in row_text)
@@ -611,7 +632,9 @@ def generate_batch():
     tmp_excel_path = data.get("tmp_path")
     mapeo = data.get("mapeo", {})  # {campo_cert: columna_excel}
     filas = data.get("filas", [])
-    config = data.get("config", {}) or {}  # {reg_stps, director_nombre, director_puesto}
+    config = (
+        data.get("config", {}) or {}
+    )  # {reg_stps, director_nombre, director_puesto}
 
     # Rango opcional: start_row, count
     start_row = data.get("start_row", 0)
@@ -648,7 +671,9 @@ def generate_batch():
 
     # Thread en background
     t = threading.Thread(
-        target=_run_batch, args=(plantilla_nombre, filas_con_config, mapeo, start_row), daemon=True
+        target=_run_batch,
+        args=(plantilla_nombre, filas_con_config, mapeo, start_row),
+        daemon=True,
     )
     t.start()
 
@@ -732,10 +757,7 @@ def _render_plantilla(nombre, datos):
     # Defaults opcionales (antes de reemplazar, para que los placeholders
     # como {{reg_stps}} siempre tengan un valor si vienen vacíos)
     datos["reg_stps"] = (datos.get("reg_stps") or "JUVH8204083R3-005").strip()
-    # Defaults para firmas DC-3
-    if nombre == "dc3":
-        datos["firma_representante"] = datos.get("firma_representante") or "firmas/Firma_Soledad_Pastorutti.png"
-        datos["firma_trabajadores"] = datos.get("firma_trabajadores") or ""
+    # Sin default de firmas — solo se muestran si el usuario sube el archivo
 
     # Reemplazar {{campo}} con valor correspondiente
     for key, val in datos.items():
@@ -760,22 +782,30 @@ def _render_plantilla(nombre, datos):
             for i in range(length):
                 html = html.replace(f"{{{{{base_field}_{i}}}}}", "")
 
-    # Fechas expandidas: si llega fecha_ini como "01/06/2026", parsear a componentes
+    # Fechas expandidas: convierte a DD/MM/AAAA y extrae dígitos
+    # Soporta: datetime objects, "DD/MM/AAAA", "YYYY-MM-DD HH:MM:SS" (Excel raw)
     date_sources = [("fecha_ini", "fecha_ini"), ("fecha_fin", "fecha_fin")]
     for src_key, prefix in date_sources:
-        if src_key in datos and datos[src_key] and "/" in str(datos[src_key]):
-            parts = str(datos[src_key]).strip().split("/")
-            if len(parts) == 3:
-                dia, mes, año = parts
-                # Expandir año
-                for i, ch in enumerate(año.ljust(4)[:4]):
-                    html = html.replace(f"{{{{{prefix}_año_{i}}}}}", ch)
-                # Expandir mes
-                for i, ch in enumerate(mes.ljust(2)[:2]):
-                    html = html.replace(f"{{{{{prefix}_mes_{i}}}}}", ch)
-                # Expandir día
-                for i, ch in enumerate(dia.ljust(2)[:2]):
-                    html = html.replace(f"{{{{{prefix}_dia_{i}}}}}", ch)
+        if src_key in datos and datos[src_key]:
+            val = datos[src_key]
+            if isinstance(val, datetime):
+                val = val.strftime("%d/%m/%Y")
+            elif isinstance(val, str) and "-" in val and val[0].isdigit():
+                # Formato ISO "2026-06-19 00:00:00"
+                try:
+                    val = datetime.strptime(val.split()[0], "%Y-%m-%d").strftime("%d/%m/%Y")
+                except ValueError:
+                    pass
+            if isinstance(val, str) and "/" in val:
+                parts = val.strip().split("/")
+                if len(parts) == 3:
+                    dia, mes, año = parts
+                    for i, ch in enumerate(año.ljust(4)[:4]):
+                        html = html.replace(f"{{{{{prefix}_año_{i}}}}}", ch)
+                    for i, ch in enumerate(mes.ljust(2)[:2]):
+                        html = html.replace(f"{{{{{prefix}_mes_{i}}}}}", ch)
+                    for i, ch in enumerate(dia.ljust(2)[:2]):
+                        html = html.replace(f"{{{{{prefix}_dia_{i}}}}}", ch)
 
     # Fechas expandidas directas (si ya vienen separadas)
     date_groups = [
@@ -875,7 +905,12 @@ def _generar_pdf_playwright(html_content, output_path, single_page=False):
         try:
             data = filepath.read_bytes()
             ext = filepath.suffix.lower().lstrip(".")
-            mime = {"ttf": "font/ttf", "otf": "font/otf", "woff": "font/woff", "woff2": "font/woff2"}.get(ext, "font/ttf")
+            mime = {
+                "ttf": "font/ttf",
+                "otf": "font/otf",
+                "woff": "font/woff",
+                "woff2": "font/woff2",
+            }.get(ext, "font/ttf")
             b64 = base64.b64encode(data).decode("ascii")
             new_url = f"url(data:{mime};base64,{b64})"
             return full.replace(url, new_url)
@@ -897,30 +932,50 @@ def _generar_pdf_playwright(html_content, output_path, single_page=False):
     candidates = []
 
     # 1) Carpeta local del proyecto (build.spec pone el browser aquí)
-    for sub in (Path(bundle_root) / "_ms-playwright").glob("chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell"):
+    for sub in (Path(bundle_root) / "_ms-playwright").glob(
+        "chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell"
+    ):
         candidates.append(sub)
-    for sub in (Path(bundle_root) / "_ms-playwright").glob("chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe"):
+    for sub in (Path(bundle_root) / "_ms-playwright").glob(
+        "chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe"
+    ):
         candidates.append(sub)
 
     # 2) Ruta estándar de PyInstaller para Playwright (driver/.local-browsers)
     #    Esta es la que usa el bundled cuando playwright se importa sin env var
-    for sub in (Path(bundle_root) / "playwright" / "driver" / "package" / ".local-browsers").glob("chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell"):
+    for sub in (
+        Path(bundle_root) / "playwright" / "driver" / "package" / ".local-browsers"
+    ).glob(
+        "chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell"
+    ):
         candidates.append(sub)
-    for sub in (Path(bundle_root) / "playwright" / "driver" / "package" / ".local-browsers").glob("chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe"):
+    for sub in (
+        Path(bundle_root) / "playwright" / "driver" / "package" / ".local-browsers"
+    ).glob(
+        "chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe"
+    ):
         candidates.append(sub)
 
     # 3) Fallback .local-browsers en la raíz del bundle
-    for sub in (Path(bundle_root) / ".local-browsers").glob("chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell"):
+    for sub in (Path(bundle_root) / ".local-browsers").glob(
+        "chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell"
+    ):
         candidates.append(sub)
-    for sub in (Path(bundle_root) / ".local-browsers").glob("chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe"):
+    for sub in (Path(bundle_root) / ".local-browsers").glob(
+        "chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe"
+    ):
         candidates.append(sub)
 
     # 4) Cache global del sistema (~/.cache/ms-playwright) — dev mode
     for cache in [Path.home() / ".cache" / "ms-playwright"]:
         if cache.exists():
-            for sub in cache.glob("chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell"):
+            for sub in cache.glob(
+                "chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell"
+            ):
                 candidates.append(sub)
-            for sub in cache.glob("chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe"):
+            for sub in cache.glob(
+                "chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe"
+            ):
                 candidates.append(sub)
 
     # 5) Windows: %LOCALAPPDATA%\ms-playwright
@@ -929,9 +984,13 @@ def _generar_pdf_playwright(html_content, output_path, single_page=False):
         if local_app:
             cache = Path(local_app) / "ms-playwright"
             if cache.exists():
-                for sub in cache.glob("chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell"):
+                for sub in cache.glob(
+                    "chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell"
+                ):
                     candidates.append(sub)
-                for sub in cache.glob("chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe"):
+                for sub in cache.glob(
+                    "chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe"
+                ):
                     candidates.append(sub)
 
     for c in candidates:
@@ -943,8 +1002,7 @@ def _generar_pdf_playwright(html_content, output_path, single_page=False):
         if chrome_exec:
             # Headless_shell: ~70 MB más liviano que el chromium completo
             browser = p.chromium.launch(
-                executable_path=chrome_exec,
-                args=["--allow-file-access-from-files"]
+                executable_path=chrome_exec, args=["--allow-file-access-from-files"]
             )
         else:
             # Fallback: chromium completo (más pesado pero siempre presente)
@@ -986,32 +1044,56 @@ def _run_batch(plantilla_nombre, filas, mapeo, start_row=0):
         # Mismas ubicaciones que en _generar_pdf_playwright
         chrome_exec_batch = None
         cands = []
-        for sub in (APP_ROOT / "_ms-playwright").glob("chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell"):
+        for sub in (APP_ROOT / "_ms-playwright").glob(
+            "chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell"
+        ):
             cands.append(sub)
-        for sub in (APP_ROOT / "_ms-playwright").glob("chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe"):
+        for sub in (APP_ROOT / "_ms-playwright").glob(
+            "chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe"
+        ):
             cands.append(sub)
-        for sub in (APP_ROOT / "playwright" / "driver" / "package" / ".local-browsers").glob("chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell"):
+        for sub in (
+            APP_ROOT / "playwright" / "driver" / "package" / ".local-browsers"
+        ).glob(
+            "chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell"
+        ):
             cands.append(sub)
-        for sub in (APP_ROOT / "playwright" / "driver" / "package" / ".local-browsers").glob("chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe"):
+        for sub in (
+            APP_ROOT / "playwright" / "driver" / "package" / ".local-browsers"
+        ).glob(
+            "chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe"
+        ):
             cands.append(sub)
-        for sub in (APP_ROOT / ".local-browsers").glob("chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell"):
+        for sub in (APP_ROOT / ".local-browsers").glob(
+            "chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell"
+        ):
             cands.append(sub)
-        for sub in (APP_ROOT / ".local-browsers").glob("chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe"):
+        for sub in (APP_ROOT / ".local-browsers").glob(
+            "chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe"
+        ):
             cands.append(sub)
         for cache in [Path.home() / ".cache" / "ms-playwright"]:
             if cache.exists():
-                for sub in cache.glob("chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell"):
+                for sub in cache.glob(
+                    "chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell"
+                ):
                     cands.append(sub)
-                for sub in cache.glob("chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe"):
+                for sub in cache.glob(
+                    "chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe"
+                ):
                     cands.append(sub)
         if os.name == "nt":
             local_app = os.environ.get("LOCALAPPDATA")
             if local_app:
                 cache = Path(local_app) / "ms-playwright"
                 if cache.exists():
-                    for sub in cache.glob("chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell"):
+                    for sub in cache.glob(
+                        "chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell"
+                    ):
                         cands.append(sub)
-                    for sub in cache.glob("chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe"):
+                    for sub in cache.glob(
+                        "chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe"
+                    ):
                         cands.append(sub)
         for c in cands:
             if c.exists():
@@ -1022,7 +1104,7 @@ def _run_batch(plantilla_nombre, filas, mapeo, start_row=0):
             if chrome_exec_batch:
                 browser = p.chromium.launch(
                     executable_path=chrome_exec_batch,
-                    args=["--allow-file-access-from-files"]
+                    args=["--allow-file-access-from-files"],
                 )
             else:
                 browser = p.chromium.launch(args=["--allow-file-access-from-files"])
@@ -1108,11 +1190,17 @@ def _run_batch(plantilla_nombre, filas, mapeo, start_row=0):
 
                     def inline_font_batch(match):
                         full = match.group(0)
-                        url_match = re_mod_batch.search(r"""url\(\s*['"]?([^'")]+)['"]?\s*\)""", full)
+                        url_match = re_mod_batch.search(
+                            r"""url\(\s*['"]?([^'")]+)['"]?\s*\)""", full
+                        )
                         if not url_match:
                             return full
                         url = url_match.group(1)
-                        if not re_mod_batch.search(r"\.(ttf|otf|woff2?|eot)(\?|$)", url, re_mod_batch.IGNORECASE):
+                        if not re_mod_batch.search(
+                            r"\.(ttf|otf|woff2?|eot)(\?|$)",
+                            url,
+                            re_mod_batch.IGNORECASE,
+                        ):
                             return full
                         if url.startswith(("data:", "http://", "https://", "file://")):
                             return full
@@ -1122,7 +1210,12 @@ def _run_batch(plantilla_nombre, filas, mapeo, start_row=0):
                         try:
                             data = filepath.read_bytes()
                             ext = filepath.suffix.lower().lstrip(".")
-                            mime = {"ttf": "font/ttf", "otf": "font/otf", "woff": "font/woff", "woff2": "font/woff2"}.get(ext, "font/ttf")
+                            mime = {
+                                "ttf": "font/ttf",
+                                "otf": "font/otf",
+                                "woff": "font/woff",
+                                "woff2": "font/woff2",
+                            }.get(ext, "font/ttf")
                             b64 = base64.b64encode(data).decode("ascii")
                             new_url = f"url(data:{mime};base64,{b64})"
                             return full.replace(url, new_url)
@@ -1148,11 +1241,13 @@ def _run_batch(plantilla_nombre, filas, mapeo, start_row=0):
                     page.close()
                 except Exception as e:
                     row_real = start_row + i + 1
-                    batch_state.setdefault("failed_rows", []).append({
-                        "row": row_real,
-                        "nombre": nombre,
-                        "error": str(e),
-                    })
+                    batch_state.setdefault("failed_rows", []).append(
+                        {
+                            "row": row_real,
+                            "nombre": nombre,
+                            "error": str(e),
+                        }
+                    )
                     traceback.print_exc()
 
             browser.close()

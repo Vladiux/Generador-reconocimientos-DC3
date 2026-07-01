@@ -59,6 +59,9 @@ function getAgentConfig() {
     director_puesto:
       document.getElementById("cfgDirectorPuesto")?.value?.trim() ||
       "Agente Capacitador Externo",
+    agente_capacitador:
+      document.getElementById("cfgAgenteCapacitador")?.value?.trim() ||
+      "Ing. Hugo Juárez Vite",
   };
 }
 
@@ -596,9 +599,9 @@ function actualizarResumen() {
     dc3Options = `
         <div class="summary-section" style="margin-top:8px;padding-top:8px;border-top:1px solid #e2e8f0">
             <div class="summary-row">
-                <span class="summary-label">👤 Instructor</span>
+                <span class="summary-label">👤 Agente capacitador (DC-3)</span>
                 <span class="summary-value">
-                    <input type="text" id="inputRepLegal" placeholder="Ing. Hugo Juárez Vite"
+                    <input type="text" id="cfgAgenteCapacitador" placeholder="Ing. Hugo Juárez Vite"
                            style="border:1px solid #cbd5e1;border-radius:6px;padding:4px 8px;font-size:12px;width:200px"
                            value="Ing. Hugo Juárez Vite">
                 </span>
@@ -803,13 +806,8 @@ document.getElementById("btnGenerate").addEventListener("click", async () => {
     }
     // Inyectar opciones DC-3 si aplica
     if (state.selectedTemplate === "dc3") {
-      const repLegal = document.getElementById("inputRepLegal");
       const chkRep = document.getElementById("chkRepTrabajadores");
-      datos["representante_legal"] = repLegal
-        ? repLegal.value
-        : "Ing. Hugo Juárez Vite";
-      datos["firma_representante"] =
-        firmaLegalData || "firmas/Firma_Soledad_Pastorutti.png";
+      datos["firma_representante"] = firmaLegalData || "";
       datos["representante_trabajadores"] =
         chkRep && chkRep.checked
           ? document.getElementById("inputRepTrabajadores")?.value ||

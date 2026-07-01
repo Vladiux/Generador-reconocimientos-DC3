@@ -40,3 +40,7 @@ secrets/
 # ─── Playwright (binarios descargados localmente) ───
 # Se descargan en CI también, no los commiteamos
 .playwright/
+
+# ─── Documentación local (no compartir al repo) ───
+CLAUDE.md
+.claude/
