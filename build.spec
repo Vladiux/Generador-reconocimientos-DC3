@@ -35,6 +35,8 @@ datas = [
     (str(BASE / "plantillas"), "plantillas"),
     # Archivos estáticos (CSS, JS, excels de ejemplo)
     (str(BASE / "static"), "static"),
+    # Assets (logos, iconos)
+    (str(BASE / "assets"), "assets"),
     # Firmas PNG
     (str(BASE / "firmas"), "firmas"),
     # Logos del agente capacitador

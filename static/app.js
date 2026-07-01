@@ -599,14 +599,6 @@ function actualizarResumen() {
     dc3Options = `
         <div class="summary-section" style="margin-top:8px;padding-top:8px;border-top:1px solid #e2e8f0">
             <div class="summary-row">
-                <span class="summary-label">👤 Agente capacitador (DC-3)</span>
-                <span class="summary-value">
-                    <input type="text" id="cfgAgenteCapacitador" placeholder="Ing. Hugo Juárez Vite"
-                           style="border:1px solid #cbd5e1;border-radius:6px;padding:4px 8px;font-size:12px;width:200px"
-                           value="Ing. Hugo Juárez Vite">
-                </span>
-            </div>
-            <div class="summary-row">
                 <span class="summary-label">✍️ Firma del Instructor</span>
                 <span class="summary-value">
                     <input type="file" id="fileFirmaLegal" accept="image/*"
