@@ -807,7 +807,7 @@ document.getElementById("btnGenerate").addEventListener("click", async () => {
     // Inyectar opciones DC-3 si aplica
     if (state.selectedTemplate === "dc3") {
       const chkRep = document.getElementById("chkRepTrabajadores");
-      datos["firma_representante"] = firmaLegalData || "";
+      datos["firma_instructor"] = firmaLegalData || "";
       datos["representante_trabajadores"] =
         chkRep && chkRep.checked
           ? document.getElementById("inputRepTrabajadores")?.value ||
