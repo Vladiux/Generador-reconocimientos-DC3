@@ -360,6 +360,30 @@
                         </p>
                     </details>
 
+                    <!-- Controles de generación: rango -->
+                    <div class="gen-controls" style="margin:12px 0;padding:12px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
+                        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                            <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer">
+                                <input type="radio" name="genMode" value="all" checked onchange="onGenModeChange()">
+                                Todos
+                            </label>
+                            <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer">
+                                <input type="radio" name="genMode" value="first" onchange="onGenModeChange()">
+                                Primeros
+                            </label>
+                            <input type="number" id="genCountInput" min="1" value="5"
+                                   style="width:55px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:4px;font-size:13px"
+                                   onchange="onGenModeChange()" disabled>
+                            <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer">
+                                <input type="radio" name="genMode" value="from" onchange="onGenModeChange()">
+                                Desde fila
+                            </label>
+                            <input type="number" id="genFromInput" min="1" value="1"
+                                   style="width:55px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:4px;font-size:13px"
+                                   onchange="onGenModeChange()" disabled>
+                        </div>
+                    </div>
+
                     <div class="action-row">
                         <button class="btn btn-secondary" id="btnPreview">
                             👁️ Vista previa
@@ -410,6 +434,10 @@
                         <button class="btn btn-ghost" id="btnRestart">
                             🔄 Generar otro lote
                         </button>
+                    </div>
+                    <div id="failedRowsContainer" style="display:none;margin-top:12px;padding:10px 14px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px">
+                        <strong style="font-size:13px;color:#991b1b">❌ Filas con error</strong>
+                        <div id="failedRowsList" style="margin-top:6px;font-size:12px;color:#7f1d1d;max-height:200px;overflow-y:auto"></div>
                     </div>
                 </div>
             </section>

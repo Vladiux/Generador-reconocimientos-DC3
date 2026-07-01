@@ -613,32 +613,46 @@ def generate_batch():
     filas = data.get("filas", [])
     config = data.get("config", {}) or {}  # {reg_stps, director_nombre, director_puesto}
 
+    # Rango opcional: start_row, count
+    start_row = data.get("start_row", 0)
+    count = data.get("count", 0)  # 0 = todas desde start_row
+
     if not plantilla_nombre or not filas:
         return jsonify({"error": "Faltan datos: plantilla y filas"}), 400
 
+    # Aplicar rango
+    end_row = start_row + count if count > 0 else len(filas)
+    end_row = min(end_row, len(filas))
+    filas_range = filas[start_row:end_row]
+
+    if not filas_range:
+        return jsonify({"error": "El rango seleccionado no contiene filas"}), 400
+
     # Mezclar config del agente en cada fila (STPS, director, etc.)
     config_limpio = {k: v for k, v in config.items() if v}
-    filas_con_config = [{**config_limpio, **fila} for fila in filas]
+    filas_con_config = [{**config_limpio, **fila} for fila in filas_range]
 
     # Reiniciar estado
     batch_state = {
         "status": "running",
-        "total": len(filas),
+        "total": len(filas_range),
         "completed": 0,
         "current_name": "",
         "started_at": datetime.now().isoformat(),
         "finished_at": None,
         "output_dir": "",
         "error": "",
+        "failed_rows": [],
+        "start_row": start_row,
     }
 
     # Thread en background
     t = threading.Thread(
-        target=_run_batch, args=(plantilla_nombre, filas_con_config, mapeo), daemon=True
+        target=_run_batch, args=(plantilla_nombre, filas_con_config, mapeo, start_row), daemon=True
     )
     t.start()
 
-    return jsonify({"status": "started", "total": len(filas)})
+    return jsonify({"status": "started", "total": len(filas_range)})
 
 
 @app.route("/api/progress")
@@ -718,6 +732,10 @@ def _render_plantilla(nombre, datos):
     # Defaults opcionales (antes de reemplazar, para que los placeholders
     # como {{reg_stps}} siempre tengan un valor si vienen vacíos)
     datos["reg_stps"] = (datos.get("reg_stps") or "JUVH8204083R3-005").strip()
+    # Defaults para firmas DC-3
+    if nombre == "dc3":
+        datos["firma_representante"] = datos.get("firma_representante") or "firmas/Firma_Soledad_Pastorutti.png"
+        datos["firma_trabajadores"] = datos.get("firma_trabajadores") or ""
 
     # Reemplazar {{campo}} con valor correspondiente
     for key, val in datos.items():
@@ -948,10 +966,13 @@ def _generar_pdf_playwright(html_content, output_path, single_page=False):
         browser.close()
 
 
-def _run_batch(plantilla_nombre, filas, mapeo):
+def _run_batch(plantilla_nombre, filas, mapeo, start_row=0):
     """Ejecuta la generación masiva en background.
     filas: lista de dicts con los datos ya mapeados {campo: valor}
+    start_row: índice original (para reportar errores con el número real)
     """
+    import traceback
+
     global batch_state
 
     output_dir = (
@@ -1033,101 +1054,106 @@ def _run_batch(plantilla_nombre, filas, mapeo):
                 batch_state["current_name"] = nombre
                 batch_state["completed"] = i
 
-                # Renderizar HTML
-                html = _render_plantilla(plantilla_nombre, datos)
+                try:
+                    # Renderizar HTML
+                    html = _render_plantilla(plantilla_nombre, datos)
 
-                # Convertir imágenes a base64 inline (firmas, logos)
-                import base64
-                import mimetypes
-                import re as re_mod_batch
+                    # Convertir imágenes a base64 inline (firmas, logos)
+                    import base64
+                    import mimetypes
+                    import re as re_mod_batch
 
-                firmas_dir_batch = APP_ROOT / "firmas"
-                static_dir_batch = APP_ROOT / "static"
+                    firmas_dir_batch = APP_ROOT / "firmas"
+                    static_dir_batch = APP_ROOT / "static"
 
-                def inline_image_batch(match):
-                    full_tag = match.group(0)
-                    src_match = re_mod_batch.search(r'src="([^"]+)"', full_tag)
-                    if not src_match:
-                        return full_tag
-                    src = src_match.group(1)
-                    # Si ya es data URI (firmas del frontend), saltar
-                    if src.startswith("data:"):
-                        return full_tag
-                    # Determinar archivo físico (mismos prefijos que _generar_pdf_playwright)
-                    if src.startswith("firmas/"):
-                        filepath = firmas_dir_batch / src.replace("firmas/", "", 1)
-                    elif src.startswith("static/"):
-                        filepath = static_dir_batch / src.replace("static/", "", 1)
-                    elif src.startswith("plantillas/"):
-                        filepath = APP_ROOT / src
-                    else:
-                        # Imagen suelta en la raíz del proyecto (ej. assets/AGASI.png, Gotita.png)
-                        filepath = APP_ROOT / src
-                    if not filepath.exists():
-                        return full_tag
-                    try:
-                        data = filepath.read_bytes()
-                        mime, _ = mimetypes.guess_type(str(filepath))
-                        if not mime:
-                            ext = filepath.suffix.lower()
-                            mime = {
-                                "png": "image/png",
-                                "jpg": "image/jpeg",
-                                "jpeg": "image/jpeg",
-                                "gif": "image/gif",
-                                "svg": "image/svg+xml",
-                            }.get(ext.lstrip("."), "image/png")
-                        b64 = base64.b64encode(data).decode("ascii")
-                        new_src = f"data:{mime};base64,{b64}"
-                        return full_tag.replace(f'src="{src}"', f'src="{new_src}"')
-                    except:
-                        return full_tag
+                    def inline_image_batch(match):
+                        full_tag = match.group(0)
+                        src_match = re_mod_batch.search(r'src="([^"]+)"', full_tag)
+                        if not src_match:
+                            return full_tag
+                        src = src_match.group(1)
+                        if src.startswith("data:"):
+                            return full_tag
+                        if src.startswith("firmas/"):
+                            filepath = firmas_dir_batch / src.replace("firmas/", "", 1)
+                        elif src.startswith("static/"):
+                            filepath = static_dir_batch / src.replace("static/", "", 1)
+                        elif src.startswith("plantillas/"):
+                            filepath = APP_ROOT / src
+                        else:
+                            filepath = APP_ROOT / src
+                        if not filepath.exists():
+                            return full_tag
+                        try:
+                            data = filepath.read_bytes()
+                            mime, _ = mimetypes.guess_type(str(filepath))
+                            if not mime:
+                                ext = filepath.suffix.lower()
+                                mime = {
+                                    "png": "image/png",
+                                    "jpg": "image/jpeg",
+                                    "jpeg": "image/jpeg",
+                                    "gif": "image/gif",
+                                    "svg": "image/svg+xml",
+                                }.get(ext.lstrip("."), "image/png")
+                            b64 = base64.b64encode(data).decode("ascii")
+                            new_src = f"data:{mime};base64,{b64}"
+                            return full_tag.replace(f'src="{src}"', f'src="{new_src}"')
+                        except:
+                            return full_tag
 
-                html = re_mod_batch.sub(
-                    r'<img[^>]*src="[^"]+"[^>]*>', inline_image_batch, html
-                )
+                    html = re_mod_batch.sub(
+                        r'<img[^>]*src="[^"]+"[^>]*>', inline_image_batch, html
+                    )
 
-                # Inlineado de fuentes (mismo que en _generar_pdf_playwright)
-                def inline_font_batch(match):
-                    full = match.group(0)
-                    url_match = re_mod_batch.search(r"""url\(\s*['"]?([^'")]+)['"]?\s*\)""", full)
-                    if not url_match:
-                        return full
-                    url = url_match.group(1)
-                    if not re_mod_batch.search(r"\.(ttf|otf|woff2?|eot)(\?|$)", url, re_mod_batch.IGNORECASE):
-                        return full
-                    if url.startswith(("data:", "http://", "https://", "file://")):
-                        return full
-                    filepath = APP_ROOT / url
-                    if not filepath.exists():
-                        return full
-                    try:
-                        data = filepath.read_bytes()
-                        ext = filepath.suffix.lower().lstrip(".")
-                        mime = {"ttf": "font/ttf", "otf": "font/otf", "woff": "font/woff", "woff2": "font/woff2"}.get(ext, "font/ttf")
-                        b64 = base64.b64encode(data).decode("ascii")
-                        new_url = f"url(data:{mime};base64,{b64})"
-                        return full.replace(url, new_url)
-                    except:
-                        return full
+                    def inline_font_batch(match):
+                        full = match.group(0)
+                        url_match = re_mod_batch.search(r"""url\(\s*['"]?([^'")]+)['"]?\s*\)""", full)
+                        if not url_match:
+                            return full
+                        url = url_match.group(1)
+                        if not re_mod_batch.search(r"\.(ttf|otf|woff2?|eot)(\?|$)", url, re_mod_batch.IGNORECASE):
+                            return full
+                        if url.startswith(("data:", "http://", "https://", "file://")):
+                            return full
+                        filepath = APP_ROOT / url
+                        if not filepath.exists():
+                            return full
+                        try:
+                            data = filepath.read_bytes()
+                            ext = filepath.suffix.lower().lstrip(".")
+                            mime = {"ttf": "font/ttf", "otf": "font/otf", "woff": "font/woff", "woff2": "font/woff2"}.get(ext, "font/ttf")
+                            b64 = base64.b64encode(data).decode("ascii")
+                            new_url = f"url(data:{mime};base64,{b64})"
+                            return full.replace(url, new_url)
+                        except:
+                            return full
 
-                html = re_mod_batch.sub(r"url\([^)]+\)", inline_font_batch, html)
+                    html = re_mod_batch.sub(r"url\([^)]+\)", inline_font_batch, html)
 
-                # Detectar orientación y formato
-                is_landscape = "landscape" in html.lower()
-                page_format = "Letter" if "215.9mm" in html else "A4"
+                    # Detectar orientación y formato
+                    is_landscape = "landscape" in html.lower()
+                    page_format = "Letter" if "215.9mm" in html else "A4"
 
-                # Generar PDF
-                page = browser.new_page()
-                page.set_content(html, wait_until="networkidle")
-                page.pdf(
-                    path=str(filepath),
-                    format=page_format,
-                    landscape=is_landscape,
-                    print_background=True,
-                    margin={"top": "0", "right": "0", "bottom": "0", "left": "0"},
-                )
-                page.close()
+                    # Generar PDF
+                    page = browser.new_page()
+                    page.set_content(html, wait_until="networkidle")
+                    page.pdf(
+                        path=str(filepath),
+                        format=page_format,
+                        landscape=is_landscape,
+                        print_background=True,
+                        margin={"top": "0", "right": "0", "bottom": "0", "left": "0"},
+                    )
+                    page.close()
+                except Exception as e:
+                    row_real = start_row + i + 1
+                    batch_state.setdefault("failed_rows", []).append({
+                        "row": row_real,
+                        "nombre": nombre,
+                        "error": str(e),
+                    })
+                    traceback.print_exc()
 
             browser.close()
 
@@ -1139,6 +1165,7 @@ def _run_batch(plantilla_nombre, filas, mapeo):
         batch_state["status"] = "error"
         batch_state["error"] = str(e)
         batch_state["finished_at"] = datetime.now().isoformat()
+        traceback.print_exc()
 
 
 def _slugify(text):
