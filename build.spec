@@ -41,7 +41,6 @@ datas = [
     (str(BASE / "Logos agente capacitador"), "Logos agente capacitador"),
     # Logo principal en raíz (lo usa la app en algunos lados)
     (str(BASE / "AG_Principal.png"), "."),
-    (str(BASE / "Firma_Soledad_Pastorutti.png"), "."),
 ]
 
 # ─── Hidden imports (módulos que PyInstaller no detecta automáticamente) ───
