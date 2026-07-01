@@ -81,9 +81,9 @@
   }
 
   .footer-mod {
-    display: flex; justify-content: space-between;
+    display: flex; justify-content: center;
     align-items: flex-end; width: 100%;
-    padding: 0 15mm; gap: 15mm; margin-top: 4mm;
+    padding: 0 15mm; margin-top: 7mm;
   }
   .firma { display: flex; flex-direction: column; align-items: center; gap: 1mm; flex: 1; }
   .firma-img { height: 16mm; object-fit: contain; margin-bottom: 1mm; opacity: 0.9; }
@@ -121,8 +121,8 @@
       <div class="firma">
         <img class="firma-img" src="{{firma_instructor}}" alt="" onerror="this.style.display='none'">
         <div class="firma-linea"></div>
-        <div class="firma-nombre">{{agente_capacitador}}</div>
-        <div class="firma-puesto">Agente Capacitador</div>
+        <div class="firma-nombre">{{director_nombre}}</div>
+        <div class="firma-puesto">{{director_puesto}}</div>
       </div>
     </div>
   </div>

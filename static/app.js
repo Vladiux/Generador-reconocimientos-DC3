@@ -59,9 +59,6 @@ function getAgentConfig() {
     director_puesto:
       document.getElementById("cfgDirectorPuesto")?.value?.trim() ||
       "Agente Capacitador Externo",
-    agente_capacitador:
-      document.getElementById("cfgAgenteCapacitador")?.value?.trim() ||
-      "Ing. Hugo Juárez Vite",
   };
 }
 
@@ -593,19 +590,6 @@ function actualizarResumen() {
     validacionHtml += `</div>`;
   }
 
-  // Firma del instructor (todas las plantillas)
-  const firmaSection = `
-      <div class="summary-section" style="margin-top:8px;padding-top:8px;border-top:1px solid #e2e8f0">
-          <div class="summary-row">
-              <span class="summary-label">✍️ Firma del instructor</span>
-              <span class="summary-value">
-                  <input type="file" id="fileFirmaLegal" accept="image/*"
-                         style="font-size:11px;width:200px">
-                  <span id="firmaLegalName" style="font-size:10px;color:#666;margin-left:4px"></span>
-              </span>
-          </div>
-      </div>`;
-
   // Opciones DC-3: checkbox >50 trabajadores
   let dc3Options = "";
   if (state.selectedTemplate === "dc3") {
@@ -653,7 +637,6 @@ function actualizarResumen() {
             <span class="summary-value">${Object.keys(state.mapping).length}</span>
         </div>
         ${validacionHtml}
-        ${firmaSection}
         ${dc3Options}
     `;
   document.getElementById("genCount").textContent = count;
@@ -801,10 +784,12 @@ document.getElementById("btnGenerate").addEventListener("click", async () => {
     for (const [campo, colIdx] of Object.entries(state.mapping)) {
       datos[campo] = row[colIdx] || "";
     }
+    // Inyectar firma del instructor (todas las plantillas)
+    datos["firma_instructor"] = firmaLegalData || "";
+
     // Inyectar opciones DC-3 si aplica
     if (state.selectedTemplate === "dc3") {
       const chkRep = document.getElementById("chkRepTrabajadores");
-      datos["firma_instructor"] = firmaLegalData || "";
       datos["representante_trabajadores"] =
         chkRep && chkRep.checked
           ? document.getElementById("inputRepTrabajadores")?.value ||
