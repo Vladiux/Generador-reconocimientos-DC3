@@ -6,6 +6,19 @@ App local (Flask + Playwright) que genera **cientos de PDFs** (DC-3, reconocimie
 
 ---
 
+## 🧠 Flujo del programa
+
+1. **Subes un Excel** con los datos de los participantes.
+2. **Eliges la plantilla** (DC-3, Reconocimiento, Constancia).
+3. **Mapeas columnas** del Excel a los campos del certificado (auto-detecta por nombre).
+4. **Configuras el agente capacitador** (STPS, director, firma) en el panel ⚙️ del paso 4.
+5. **Previsualizas** con la primera fila.
+6. **Generas** — puedes elegir: Todos / Primeros N / Desde fila N.
+7. La app genera los PDFs en segundo plano, mostrando progreso en vivo. Si alguna fila falla, la salta y reporta cuáles fallaron al final.
+8. Al terminar: descargas ZIP o abres la carpeta.
+
+---
+
 ## 🚀 Inicio rápido
 
 ### Si ya tienes el ejecutable (.exe / binario)
@@ -43,17 +56,30 @@ Ver [`BUILD.md`](./BUILD.md) — incluye instrucciones para Linux local, Windows
 
 ---
 
-## 📋 Uso típico (5 pasos)
+## 📋 Uso típico
 
-1. **Sube tu Excel** con la lista de participantes. Si no tienes, descarga una plantilla con los botones de la UI (📋 DC-3, 📜 Reconocimiento, 📄 Constancia).
-2. **Elige plantilla**: DC-3, Reconocimiento o Constancia.
-3. **Mapea las columnas** del Excel a los campos del certificado (la app intenta auto-mapear por nombre de columna).
-4. **Previsualiza** con la primera fila (botón "👁️ Vista previa").
-5. **Genera** → los PDFs quedan en una carpeta `output/batch_YYYYMMDD_HHMMSS/` que puedes abrir o descargar como ZIP.
+1. **Sube tu Excel** — arrastra el archivo o haz clic en la zona de carga. Si no tienes, descarga una plantilla con los botones de la UI.
+2. **Elige plantilla** — DC-3, Reconocimiento, Constancia, etc.
+3. **Mapea columnas** — la app intenta auto-mapear por nombre de columna. Puedes ajustarlo manualmente.
+4. **Configura el agente capacitador** (paso 4, botón ⚙️):
+   - **Registro STPS** — número de registro oficial (default: `JUVH8204083R3-005`)
+   - **Director General** — nombre y puesto (default: `Ing. Hugo Juárez Vite`)
+   - **Firma del instructor** — sube la imagen PNG de la firma
+5. **Si elegiste DC-3**, aparecen opciones extra:
+   - **Agente capacitador (STPS)** — texto editable para el campo "Nombre del agente capacitador" del DC-3
+   - **Firma del instructor** — también disponible aquí
+   - **¿Más de 50 trabajadores?** — checkbox para habilitar datos del representante de los trabajadores
+6. **Elige modo de generación**: Todos | Primeros N | Desde fila N
+7. **Previsualiza** con la primera fila (botón 👁️).
+8. **Genera** — los PDFs quedan en `output/batch_YYYYMMDD_HHMMSS/`. Cuando termina puedes descargar ZIP o abrir la carpeta.
 
-### Botón "📋 Copiar" errores
+### Control de errores
 
-Si tu Excel tiene CURPs/RFCs inválidos, la caja de "Errores de validación" muestra cada fila con su problema. El botón **"📋 Copiar"** (arriba a la derecha del título) copia la lista al portapapeles en formato texto plano, una línea por participante, listo para pegar en WhatsApp/email.
+Si alguna fila falla al generar (ej. Playwright crashea, imagen no encontrada), la app **la salta y sigue con las demás**. Al terminar muestra un panel rojo con las filas que fallaron y el error. No se pierde el lote completo.
+
+### Validación de Excel
+
+Si tu Excel tiene CURPs/RFCs inválidos, la caja de "Errores de validación" muestra cada fila con su problema. El botón **"📋 Copiar"** copia la lista al portapapeles, listo para pegar en WhatsApp/email.
 
 ---
 
@@ -69,10 +95,10 @@ Generador reconocimientos/
 │   ├── dc3.html                    # DC-3 formato STPS
 │   ├── reconocimiento_clasico.html
 │   ├── reconocimiento_moderno.html
-│   └── constancia.html
-├── firmas/                         # Firmas PNG
+│   ├── constancia.html             # + otros estilos (ribbon, marco, geométrico)
+├── firmas/                         # Logos PNG de AGASI
 ├── "Logos agente capacitador"/     # Logos de agentes
-├── assets/                         # Iconos (auto-generados)
+├── assets/                         # Iconos + AGASI.png para reconocimientos
 ├── output/                         # PDFs generados (auto-creado)
 ├── scripts/                        # Lanzadores .sh / .bat
 ├── build.spec                      # Config PyInstaller
@@ -103,16 +129,25 @@ Crea un `.html` en `plantillas/` con placeholders `{{campo}}` que se reemplazan 
 | `{{curso}}` | Nombre del curso | Todas |
 | `{{duracion}}` | Duración en horas | Todas |
 | `{{fecha}}` | Fecha de conclusión | Reconocimiento, Constancia |
-| `{{fecha_ini}}` | Fecha inicio (formato dd/mm/aaaa) | DC-3 |
-| `{{fecha_fin}}` | Fecha fin (formato dd/mm/aaaa) | DC-3 |
+| `{{fecha_ini}}` | Fecha inicio (dd/mm/aaaa) | DC-3 |
+| `{{fecha_fin}}` | Fecha fin (dd/mm/aaaa) | DC-3 |
 | `{{fecha_ini_dia_0}}`..`{{fecha_ini_dia_1}}` | Día desglosado (2 chars) | DC-3 |
 | `{{fecha_ini_mes_0}}`..`{{fecha_ini_mes_1}}` | Mes desglosado (2 chars) | DC-3 |
 | `{{fecha_ini_año_0}}`..`{{fecha_ini_año_3}}` | Año desglosado (4 chars) | DC-3 |
 | `{{fecha_fin_*}}` | Igual pero para fecha fin | DC-3 |
-| `{{instructor}}` | Nombre del instructor | Todas |
+| `{{instructor}}` | Nombre del instructor (del Excel) | Todas |
+| `{{director_nombre}}` | Nombre del director (configurable en UI) | Todas |
+| `{{director_puesto}}` | Puesto del director (configurable en UI) | Todas |
+| `{{agente_capacitador}}` | Agente capacitador (solo DC-3, configurable en opciones) | DC-3 |
+| `{{reg_stps}}` | Registro STPS (configurable en UI) | DC-3 |
+| `{{firma_instructor}}` | Firma del instructor (subida desde UI) | Todas |
+| `{{representante_legal}}` | Representante legal (del Excel o UI) | DC-3 |
+| `{{firma_representante}}` | Firma del representante legal (del Excel) | DC-3 |
+| `{{representante_trabajadores}}` | Representante de trabajadores (solo >50 empleados) | DC-3 |
+| `{{firma_trabajadores}}` | Firma del rep. de trabajadores (subida desde UI) | DC-3 |
 | `{{lugar}}` | Lugar de expedición | Reconocimiento |
 | `{{empresa}}` | Razón social de la empresa | DC-3 |
-| `{{rfc}}` | RFC de la empresa | DC-3 |
+| `{{rfc}}` | RFC de la empresa (12-13 chars) | DC-3 |
 | `{{puesto}}` | Puesto del participante | DC-3 |
 | `{{ocupacion}}` | Ocupación (catálogo CNO) | DC-3 |
 | `{{area_tematica}}` | Código + nombre del área | DC-3 |
@@ -153,14 +188,21 @@ La DC-3 oficial usa los caracteres individuales (`{{curp_0}}`..`{{curp_17}}`, `{
 
 ## ✍️ Firmas
 
-Coloca imágenes PNG en `firmas/`:
-- `instructor.png` — firma del instructor
-- `director.png` — firma del director general
-- Cualquier otra que referencies en tu plantilla
+Las firmas se **suben desde la UI** en cada lote — no requieren archivos en `firmas/`.
 
-Si no existen, el espacio se oculta automáticamente (no rompe el PDF).
+### Reconocimientos y Constancias
 
-Para DC-3, la UI permite subir la firma del representante legal y del representante de los trabajadores desde la misma app (no requiere que estén en `firmas/`).
+Una sola firma (centrada) que usa:
+- **Nombre:** `{{director_nombre}}` (del panel ⚙️ Datos del agente capacitador)
+- **Imagen:** se sube desde el mismo panel (botón ⚙️ → "Firma del instructor")
+
+### DC-3 (tres espacios de firma)
+
+1. **Instructor** — nombre `{{instructor}}` del Excel, firma se sube desde opciones DC-3
+2. **Patrón o representante legal** — nombre `{{representante_legal}}` del Excel, firma `{{firma_representante}}` también del Excel
+3. **Representante de los trabajadores** — solo si la empresa tiene >50 empleados (checkbox en opciones DC-3). Se ingresa nombre y se sube la firma desde la UI
+
+Si una firma no se sube, el espacio se oculta automáticamente (el `<img>` tiene un `onerror` que lo esconde).
 
 ---
 
@@ -196,9 +238,12 @@ La app expone algunos endpoints JSON por si quieres integrarla con otro sistema:
 ## 📌 Tareas comunes
 
 - **Compilar el `.exe`:** ver [`BUILD.md`](./BUILD.md)
-- **Cambiar el logo:** reemplazar `AG_Principal.png` y regenerar iconos (ver sección Iconos en `BUILD.md`)
+- **Cambiar el logo:** reemplazar `AG_Principal.png`, `assets/AGASI.png`, y regenerar iconos (ver Iconos en `BUILD.md`)
 - **Agregar un campo nuevo a las plantillas:** agregar el `{{placeholder}}` en el HTML + actualizar `PLANTILLAS_EXCEL` en `app.py`
 - **Personalizar la UI:** editar `templates/index.html` + `static/app.js` + `static/style.css`
+- **Actualizar defaults del agente:** editar `getAgentConfig()` en `static/app.js` (líneas ~51-63)
+- **Agregar opción DC-3:** editar `static/app.js` dentro del bloque `if (state.selectedTemplate === "dc3")` (~lín. 595-623)
+- **Las firmas subidas van a base64 inline** — no se guardan en disco, viajan en el JSON al backend
 
 ---
 
