@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Generador de Certificados / Reconocimientos / DC3 — AGASI
+Generador DC-3 y Reconocimientos AGASI
 App local: sube Excel, elige plantilla, genera cientos de PDFs en segundos.
 """
 
@@ -1279,7 +1279,7 @@ def _slugify(text):
 def main():
     url = f"http://{HOST}:{PORT}"
     print(f"\n{'=' * 50}")
-    print(f"  🎓 Generador de Certificados AGASI")
+    print(f"  🎓 Generador DC-3 y Reconocimientos AGASI")
     print(f"  Abriendo {url} ...")
     print(f"  Ctrl+C para cerrar")
     print(f"{'=' * 50}\n")

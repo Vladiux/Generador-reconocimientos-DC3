@@ -1,6 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 """
-PyInstaller spec para Generador de Certificados AGASI
+PyInstaller spec para Generador DC-3 y Reconocimientos AGASI
 - Empaqueta app.py + dependencias (Flask, openpyxl, playwright)
 - Incluye plantillas, firmas, logos, assets y venv de playwright
 - Genera un único ejecutable con icono
@@ -197,7 +197,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name="GeneradorAGASI",
+    name="Generador DC-3 y Reconocimientos AGASI",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

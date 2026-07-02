@@ -1,6 +1,6 @@
-# Generador de Certificados AGASI — Build & Distribución
+# Generador DC-3 y Reconocimientos AGASI — Build & Distribución
 
-Esta carpeta contiene todo lo necesario para empaquetar **Generador de Certificados / Reconocimientos / DC-3 AGASI** como un ejecutable standalone para Windows o Linux, incluyendo la generación de iconos y builds automatizados con GitHub Actions.
+Esta carpeta contiene todo lo necesario para empaquetar **Generador DC-3 y Reconocimientos AGASI** como un ejecutable standalone para Windows o Linux, incluyendo la generación de iconos y builds automatizados con GitHub Actions.
 
 ---
 
@@ -135,8 +135,8 @@ python app.py
 
 | Plataforma | Archivo | Tamaño | Cómo se ejecuta |
 |------------|---------|--------|-----------------|
-| **Windows** | `dist/GeneradorAGASI.exe` | ~170-200 MB | Doble click |
-| **Linux**   | `dist/GeneradorAGASI`    | ~170-200 MB | `./GeneradorAGASI` desde terminal |
+| **Windows** | `dist/Generador DC-3 y Reconocimientos AGASI.exe` | ~170-200 MB | Doble click |
+| **Linux**   | `dist/Generador DC-3 y Reconocimientos AGASI`    | ~170-200 MB | `./Generador DC-3 y Reconocimientos AGASI` desde terminal |
 
 Ambos son **un solo archivo** que incluye Python, Flask, Playwright/Chromium, plantillas, firmas y el icono.
 
@@ -156,12 +156,12 @@ El script:
 1. Activa el venv
 2. Instala PyInstaller si falta
 3. Verifica que Chromium de Playwright esté instalado
-4. Compila con `build.spec` → produce `dist/GeneradorAGASI`
+4. Compila con `build.spec` → produce `dist/Generador DC-3 y Reconocimientos AGASI`
 5. Imprime resumen con tamaño final
 
 **Probar el binario:**
 ```bash
-./dist/GeneradorAGASI
+./dist/Generador DC-3 y Reconocimientos AGASI
 # Espera 5s y se debe abrir el navegador en http://127.0.0.1:8765
 ```
 
@@ -188,9 +188,9 @@ playwright install chromium
 build_windows.bat
 ```
 
-4. El `.exe` queda en `dist\GeneradorAGASI.exe` con icono AGASI
+4. El `.exe` queda en `dist\Generador DC-3 y Reconocimientos AGASI.exe` con icono AGASI
 
-**Probar:** doble click en `dist\GeneradorAGASI.exe`. Se debe abrir el navegador.
+**Probar:** doble click en `dist\Generador DC-3 y Reconocimientos AGASI.exe`. Se debe abrir el navegador.
 
 ---
 
@@ -222,7 +222,7 @@ Esta carpeta **actualmente no es un repo git** (verifícalo con `git status`). T
 cd "Generador reconocimientos"
 git init
 git add .
-git commit -m "Initial commit: Generador AGASI v1.0.0"
+git commit -m "Initial commit: Generador DC-3 y Reconocimientos AGASI v1.0.0"
 
 # Crea un repo VACÍO en https://github.com/new (no inicialices con README)
 # Luego conecta este directorio:
@@ -241,7 +241,7 @@ mkdir -p "Generador reconocimientos"  # si no existe
 cd "Generador reconocimientos"
 git init
 git add .
-git commit -m "Agregar Generador de Certificados AGASI"
+git commit -m "Agregar Generador DC-3 y Reconocimientos AGASI"
 # Push desde la raíz del repo padre
 ```
 
@@ -307,7 +307,7 @@ Ve a la pestaña **Actions**, click en el run con ❌ rojo, lee el log. Causas c
 
 ## 📦 Distribuir el ejecutable
 
-Una vez tengas `GeneradorAGASI.exe` (o `GeneradorAGASI` en Linux), la persona que lo usa solo necesita:
+Una vez tengas `Generador DC-3 y Reconocimientos AGASI.exe` (o `Generador DC-3 y Reconocimientos AGASI` en Linux), la persona que lo usa solo necesita:
 
 ### Windows
 1. Doble click en el `.exe`
@@ -316,8 +316,8 @@ Una vez tengas `GeneradorAGASI.exe` (o `GeneradorAGASI` en Linux), la persona qu
 4. La carpeta `output/` se crea al lado del `.exe` para los PDFs generados
 
 ### Linux
-1. `chmod +x GeneradorAGASI` (solo la primera vez, o doble click desde explorador de archivos si el sistema lo permite)
-2. `./GeneradorAGASI` desde terminal
+1. `chmod +x Generador DC-3 y Reconocimientos AGASI` (solo la primera vez, o doble click desde explorador de archivos si el sistema lo permite)
+2. `./Generador DC-3 y Reconocimientos AGASI` desde terminal
 3. Se abre el navegador en `http://127.0.0.1:8765`
 
 **La app NO necesita:**
@@ -557,7 +557,7 @@ Similar al nivel 3 pero usando el motor de Edge embebido en Windows 10/11. NO fu
 
 ### Estado actual
 
-Cuando ejecutas `GeneradorAGASI.exe` ahora mismo:
+Cuando ejecutas `Generador DC-3 y Reconocimientos AGASI.exe` ahora mismo:
 - ✅ Se abre la app en el navegador (`http://127.0.0.1:8765`)
 - ✅ También se abre una **ventana de consola negra** (CMD) que muestra los logs del servidor
 
@@ -663,7 +663,7 @@ Si es la primera vez que subes esto a GitHub, estos son todos los pasos en orden
 ```bash
 git init
 git add .
-git commit -m "Initial commit: Generador de Certificados AGASI v1.0.0"
+git commit -m "Initial commit: Generador DC-3 y Reconocimientos AGASI v1.0.0"
 
 git remote add origin https://github.com/TU_USUARIO/generador-agasi.git
 git branch -M main
@@ -680,7 +680,7 @@ git push -u origin main
 - Click en "Build Windows .exe"
 - Click en **Run workflow** → seleccionar rama `main` → botón verde **Run workflow**
 - Espera 4-7 minutos
-- Al terminar ✅, en la parte de abajo del run hay un artifact `GeneradorAGASI-windows-main` → descargarlo y probarlo
+- Al terminar ✅, en la parte de abajo del run hay un artifact `Generador DC-3 y Reconocimientos AGASI-windows-main` → descargarlo y probarlo
 
 **5. Si el artifact funciona bien, crear el primer Release real:**
 ```bash
@@ -692,14 +692,14 @@ git push origin v1.0.0
 
 **6. Compartir el .exe con el equipo:**
 - Link directo: `https://github.com/TU_USUARIO/generador-agasi/releases/tag/v1.0.0`
-- O el link al archivo: `https://github.com/TU_USUARIO/generador-agasi/releases/download/v1.0.0/GeneradorAGASI.exe`
+- O el link al archivo: `https://github.com/TU_USUARIO/generador-agasi/releases/download/v1.0.0/Generador%20DC-3%20y%20Reconocimientos%20AGASI.exe`
 
 ---
 
 ## 📌 Recordatorios rápidos
 
-- **Compilar Linux:** `./build_linux.sh` → 3-5 min → `dist/GeneradorAGASI`
-- **Compilar Windows local:** `build_windows.bat` (en una máquina Windows) → 5-7 min → `dist/GeneradorAGASI.exe`
+- **Compilar Linux:** `./build_linux.sh` → 3-5 min → `dist/Generador DC-3 y Reconocimientos AGASI`
+- **Compilar Windows local:** `build_windows.bat` (en una máquina Windows) → 5-7 min → `dist/Generador DC-3 y Reconocimientos AGASI.exe`
 - **Compilar Windows sin máquina Windows:** `git tag v1.0.0 && git push origin v1.0.0` → ver Actions → descargar artifact
 - **Regenerar iconos:** ver bloque en sección "Iconos"
 - **Cambiar versión del build:** solo crea un nuevo tag y push

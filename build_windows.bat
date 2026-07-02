@@ -1,13 +1,13 @@
 @echo off
 REM ═══════════════════════════════════════════════════════════════
-REM Compilar GeneradorAGASI para Windows (.exe con icono)
+REM Compilar Generador DC-3 y Reconocimientos AGASI para Windows (.exe con icono)
 REM ═══════════════════════════════════════════════════════════════
 chcp 65001 >nul
 cd /d "%~dp0"
 
 echo.
 echo ═══════════════════════════════════════════════════════════
-echo   Compilando GeneradorAGASI para Windows
+echo   Compilando Generador DC-3 y Reconocimientos AGASI para Windows
 echo ═══════════════════════════════════════════════════════════
 echo.
 
@@ -45,20 +45,20 @@ echo Compilando (esto puede tardar 3-7 minutos)...
 pyinstaller build.spec --clean --noconfirm
 
 REM 6. Verificar resultado
-if exist "dist\GeneradorAGASI.exe" (
+if exist "dist\Generador DC-3 y Reconocimientos AGASI.exe" (
     echo.
     echo ═══════════════════════════════════════════════════════════
     echo   Build exitoso
     echo ═══════════════════════════════════════════════════════════
     echo.
-    echo   Ejecutable: dist\GeneradorAGASI.exe
+    echo   Ejecutable: dist\Generador DC-3 y Reconocimientos AGASI.exe
     echo.
     echo   Para ejecutar, doble click en:
-    echo     dist\GeneradorAGASI.exe
+    echo     dist\Generador DC-3 y Reconocimientos AGASI.exe
     echo.
     echo   ^(Se abrira el navegador en http://127.0.0.1:8765^)
     echo.
 ) else (
-    echo [ERROR] No se genero dist\GeneradorAGASI.exe
+    echo [ERROR] No se genero dist\Generador DC-3 y Reconocimientos AGASI.exe
     exit /b 1
 )

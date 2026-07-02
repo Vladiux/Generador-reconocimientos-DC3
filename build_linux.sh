@@ -1,13 +1,13 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════
-# Compilar GeneradorAGASI para Linux (ejecutable único .bin)
+# Compilar Generador DC-3 y Reconocimientos AGASI para Linux (ejecutable único .bin)
 # ═══════════════════════════════════════════════════════════════
 set -e
 cd "$(dirname "$0")"
 
 echo ""
 echo "═══════════════════════════════════════════════════════════"
-echo "  Compilando GeneradorAGASI para Linux"
+echo "  Compilando Generador DC-3 y Reconocimientos AGASI para Linux"
 echo "═══════════════════════════════════════════════════════════"
 echo ""
 
@@ -42,21 +42,21 @@ echo "🔨 Compilando (esto puede tardar 2-5 minutos)..."
 pyinstaller build.spec --clean --noconfirm
 
 # 6. Verificar resultado
-if [ -f "dist/GeneradorAGASI" ]; then
-    SIZE=$(du -h "dist/GeneradorAGASI" | cut -f1)
+if [ -f "dist/Generador DC-3 y Reconocimientos AGASI" ]; then
+    SIZE=$(du -h "dist/Generador DC-3 y Reconocimientos AGASI" | cut -f1)
     echo ""
     echo "═══════════════════════════════════════════════════════════"
     echo "  ✅ Build exitoso"
     echo "═══════════════════════════════════════════════════════════"
     echo ""
-    echo "  Ejecutable: dist/GeneradorAGASI ($SIZE)"
+    echo "  Ejecutable: dist/Generador DC-3 y Reconocimientos AGASI ($SIZE)"
     echo ""
     echo "  Para ejecutar:"
-    echo "    ./dist/GeneradorAGASI"
+    echo "    ./dist/Generador DC-3 y Reconocimientos AGASI"
     echo ""
     echo "  (Se abrirá el navegador en http://127.0.0.1:8765)"
     echo ""
 else
-    echo "❌ Error: no se generó dist/GeneradorAGASI"
+    echo "❌ Error: no se generó dist/Generador DC-3 y Reconocimientos AGASI"
     exit 1
 fi

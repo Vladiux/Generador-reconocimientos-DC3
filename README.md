@@ -1,4 +1,4 @@
-# Generador de Certificados / Reconocimientos / DC-3 — AGASI
+# Generador DC-3 y Reconocimientos AGASI
 
 App local (Flask + Playwright) que genera **cientos de PDFs** (DC-3, reconocimientos, constancias) a partir de un Excel con la lista de participantes.
 
@@ -23,8 +23,8 @@ App local (Flask + Playwright) que genera **cientos de PDFs** (DC-3, reconocimie
 
 ### Si ya tienes el ejecutable (.exe / binario)
 
-**Windows:** doble click en `GeneradorAGASI.exe`. Se abre el navegador solo.
-**Linux:** `./GeneradorAGASI` desde terminal.
+**Windows:** doble click en `Generador DC-3 y Reconocimientos AGASI.exe`. Se abre el navegador solo.
+**Linux:** `./Generador DC-3 y Reconocimientos AGASI` desde terminal.
 
 ### Si quieres correrlo en modo desarrollo
 

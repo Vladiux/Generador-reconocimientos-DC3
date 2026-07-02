@@ -156,7 +156,10 @@ function validarCURP(curp) {
 
 function validarRFC(rfc) {
   if (!rfc || rfc.trim() === "") return { ok: false, msg: "vacío" };
-  const c = rfc.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const c = rfc
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
   if (c.length === 12) return { ok: true, msg: "12 chars · Persona Moral" };
   if (c.length === 13) return { ok: true, msg: "13 chars · Persona Física" };
   return { ok: false, msg: `${c.length} chars (deben ser 12 o 13)` };
@@ -607,7 +610,7 @@ function actualizarResumen() {
                 <span class="summary-value">
                     <input type="text" id="cfgAgenteCapacitador" placeholder="Ing. Hugo Juárez Vite"
                            style="border:1px solid #cbd5e1;border-radius:6px;padding:4px 8px;font-size:12px;width:200px"
-                           value="Ing. Hugo Juárez Vite">
+                           value="">
                 </span>
             </div>
             <div class="summary-row">
@@ -683,8 +686,11 @@ function onGenModeChange() {
 
 function getGenRange() {
   const total = state.excelData?.total || 0;
-  const mode = document.querySelector('input[name="genMode"]:checked')?.value || "all";
-  const count = parseInt(document.getElementById("genCountInput")?.value || "5");
+  const mode =
+    document.querySelector('input[name="genMode"]:checked')?.value || "all";
+  const count = parseInt(
+    document.getElementById("genCountInput")?.value || "5",
+  );
   const from = parseInt(document.getElementById("genFromInput")?.value || "1");
 
   let start_row = 0;
@@ -794,7 +800,8 @@ function buildRows(firmaLegalData, firmaTrabData, rows) {
       const chkRep = document.getElementById("chkRepTrabajadores");
       datos["representante_trabajadores"] =
         chkRep && chkRep.checked
-          ? document.getElementById("inputRepTrabajadores")?.value || "Representante"
+          ? document.getElementById("inputRepTrabajadores")?.value ||
+            "Representante"
           : "";
       datos["firma_trabajadores"] =
         chkRep && chkRep.checked ? firmaTrabData : "";
@@ -827,7 +834,9 @@ function doGenerate(filas) {
       document.getElementById("step4").style.display = "none";
       document.getElementById("stepProgress").style.display = "block";
       document.getElementById("progressTotal").textContent = data.total;
-      document.getElementById("stepProgress").scrollIntoView({ behavior: "smooth" });
+      document
+        .getElementById("stepProgress")
+        .scrollIntoView({ behavior: "smooth" });
       iniciarProgreso();
     });
 }
@@ -842,7 +851,11 @@ function closeValidationModal() {
 
 function generateAll() {
   closeValidationModal();
-  const filas = buildRows(_pendingFirmaLegalData, _pendingFirmaTrabData, state.excelData.rows);
+  const filas = buildRows(
+    _pendingFirmaLegalData,
+    _pendingFirmaTrabData,
+    state.excelData.rows,
+  );
   doGenerate(filas);
 }
 
@@ -850,7 +863,11 @@ function generateWithExclusion() {
   closeValidationModal();
   const errorIndices = new Set((state.errores || []).map((e) => e.idx - 1));
   const cleanRows = state.excelData.rows.filter((_, i) => !errorIndices.has(i));
-  const filas = buildRows(_pendingFirmaLegalData, _pendingFirmaTrabData, cleanRows);
+  const filas = buildRows(
+    _pendingFirmaLegalData,
+    _pendingFirmaTrabData,
+    cleanRows,
+  );
   doGenerate(filas);
 }
 
@@ -866,8 +883,12 @@ document.getElementById("btnGenerate").addEventListener("click", async () => {
     }
   }
 
-  const firmaLegalData = await readFileAsDataURL(document.getElementById("fileFirmaLegal"));
-  const firmaTrabData = await readFileAsDataURL(document.getElementById("fileFirmaTrabajadores"));
+  const firmaLegalData = await readFileAsDataURL(
+    document.getElementById("fileFirmaLegal"),
+  );
+  const firmaTrabData = await readFileAsDataURL(
+    document.getElementById("fileFirmaTrabajadores"),
+  );
 
   _pendingFirmaLegalData = firmaLegalData;
   _pendingFirmaTrabData = firmaTrabData;
@@ -876,7 +897,10 @@ document.getElementById("btnGenerate").addEventListener("click", async () => {
   if (state.errores && state.errores.length > 0) {
     const list = document.getElementById("validationErrorList");
     list.innerHTML = state.errores
-      .map((e) => `<div style="padding:2px 0"><strong>${e.nombre}</strong>: ${e.errors.join(", ")}</div>`)
+      .map(
+        (e) =>
+          `<div style="padding:2px 0"><strong>${e.nombre}</strong>: ${e.errors.join(", ")}</div>`,
+      )
       .join("");
     document.getElementById("validationModal").style.display = "flex";
     return;
@@ -930,9 +954,12 @@ function iniciarProgreso() {
         const container = document.getElementById("failedRowsContainer");
         const list = document.getElementById("failedRowsList");
         container.style.display = "block";
-        list.innerHTML = data.failed_rows.map(
-          (f) => `<div style="padding:2px 0"><strong>Fila ${f.row}</strong> — ${f.nombre}: ${f.error}</div>`
-        ).join("");
+        list.innerHTML = data.failed_rows
+          .map(
+            (f) =>
+              `<div style="padding:2px 0"><strong>Fila ${f.row}</strong> — ${f.nombre}: ${f.error}</div>`,
+          )
+          .join("");
       }
     } else if (data.status === "error") {
       current.textContent = "❌ Error: " + data.error;

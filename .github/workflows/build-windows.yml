@@ -1,7 +1,7 @@
 name: Build Windows .exe
 
 # ─────────────────────────────────────────────────────────────────
-# Compila GeneradorAGASI.exe en un runner Windows de GitHub.
+# Compila Generador DC-3 y Reconocimientos AGASI.exe en un runner Windows de GitHub.
 #
 # Se dispara de DOS formas:
 #   1. Automático: al hacer push de un tag que empiece con 'v' (ej: v1.0.0)
@@ -97,20 +97,20 @@ jobs:
           fi
           pyinstaller build.spec --clean --noconfirm
           echo "=== Verificación ==="
-          if [ ! -f "dist/GeneradorAGASI.exe" ]; then
-            echo "❌ ERROR: no se generó dist/GeneradorAGASI.exe"
+          if [ ! -f "dist/Generador DC-3 y Reconocimientos AGASI.exe" ]; then
+            echo "❌ ERROR: no se generó dist/Generador DC-3 y Reconocimientos AGASI.exe"
             exit 1
           fi
           ls -la dist/
-          SIZE=$(du -h dist/GeneradorAGASI.exe | cut -f1)
-          echo "✅ Build OK: dist/GeneradorAGASI.exe ($SIZE)"
+          SIZE=$(du -h "dist/Generador DC-3 y Reconocimientos AGASI.exe" | cut -f1)
+          echo "✅ Build OK: dist/Generador DC-3 y Reconocimientos AGASI.exe ($SIZE)"
 
       # ─── Subir como artifact (siempre, sin importar si es tag o manual) ───
       - name: 📤 Subir .exe como artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GeneradorAGASI-windows-${{ github.ref_name }}
-          path: dist/GeneradorAGASI.exe
+          name: Generador DC-3 y Reconocimientos AGASI-windows-${{ github.ref_name }}
+          path: dist/Generador DC-3 y Reconocimientos AGASI.exe
           if-no-files-found: error
           retention-days: 30
 
@@ -119,17 +119,17 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          name: "Generador AGASI ${{ github.ref_name }}"
+          name: "Generador DC-3 y Reconocimientos AGASI ${{ github.ref_name }}"
           draft: false
           prerelease: false
           generate_release_notes: true
           body: |
-            ## Generador de Certificados AGASI — ${{ github.ref_name }}
+            ## Generador DC-3 y Reconocimientos AGASI — ${{ github.ref_name }}
 
-            Ejecutable standalone de Windows para **Generador de Certificados / Reconocimientos / DC-3 AGASI**.
+            Ejecutable standalone de Windows para **Generador DC-3 y Reconocimientos AGASI**.
 
             ### 📥 Instalación
-            1. Descarga `GeneradorAGASI.exe` (abajo)
+            1. Descarga `Generador DC-3 y Reconocimientos AGASI.exe` (abajo)
             2. Doble click para ejecutar
             3. Si Windows SmartScreen pregunta: "Más información" → "Ejecutar de todas formas"
 
@@ -149,5 +149,5 @@ jobs:
             - Basado en el commit del tag `${{ github.ref_name }}`
             - Ver el [README del proyecto](../blob/${{ github.ref_name }}/README.md) para más detalles
           files: |
-            dist/GeneradorAGASI.exe
+            dist/Generador DC-3 y Reconocimientos AGASI.exe
           fail_on_unmatched_files: true
