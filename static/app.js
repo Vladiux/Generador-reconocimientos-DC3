@@ -156,9 +156,10 @@ function validarCURP(curp) {
 
 function validarRFC(rfc) {
   if (!rfc || rfc.trim() === "") return { ok: false, msg: "vacío" };
-  const c = rfc.trim().toUpperCase();
-  if (c.length === 12) return { ok: true, msg: "12 chars · Empresa" };
-  return { ok: false, msg: `${c.length} chars (deben ser 12)` };
+  const c = rfc.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (c.length === 12) return { ok: true, msg: "12 chars · Persona Moral" };
+  if (c.length === 13) return { ok: true, msg: "13 chars · Persona Física" };
+  return { ok: false, msg: `${c.length} chars (deben ser 12 o 13)` };
 }
 
 // ─── Preview de datos cargados ───
@@ -548,6 +549,9 @@ function actualizarResumen() {
     }
   });
 
+  // Guardar errores en state para el modal de generación
+  state.errores = errores;
+
   // Validación resumen
   let validacionHtml = "";
   if (curpCol >= 0 || rfcCol >= 0) {
@@ -769,62 +773,38 @@ function closePreview() {
   document.getElementById("previewModal").style.display = "none";
 }
 
-// ─── Step 4: Generar ───
-document.getElementById("btnGenerate").addEventListener("click", async () => {
-  // Validar campos requeridos
-  const requiredFields = CAMPOS_CERT.filter(
-    (c) => c.required && state.camposDisponibles.includes(c.key),
-  );
-  for (const field of requiredFields) {
-    if (state.mapping[field.key] === undefined) {
-      alert(`Falta mapear: ${field.label}`);
-      return;
-    }
-  }
+// ─── Helpers de firma ───
+async function readFileAsDataURL(input) {
+  if (!input || !input.files || !input.files[0]) return "";
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve(e.target.result);
+    reader.readAsDataURL(input.files[0]);
+  });
+}
 
-  // Leer archivos de firma como base64
-  async function readFileAsDataURL(input) {
-    if (!input || !input.files || !input.files[0]) return "";
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = (e) => resolve(e.target.result);
-      reader.readAsDataURL(input.files[0]);
-    });
-  }
-  const firmaLegalData = await readFileAsDataURL(
-    document.getElementById("fileFirmaLegal"),
-  );
-  const firmaTrabData = await readFileAsDataURL(
-    document.getElementById("fileFirmaTrabajadores"),
-  );
-
-  // Construir filas con datos mapeados
-  const filas = state.excelData.rows.map((row) => {
+function buildRows(firmaLegalData, firmaTrabData, rows) {
+  return rows.map((row) => {
     const datos = {};
     for (const [campo, colIdx] of Object.entries(state.mapping)) {
       datos[campo] = row[colIdx] || "";
     }
-    // Inyectar firma del instructor (todas las plantillas)
     datos["firma_instructor"] = firmaLegalData || "";
-
-    // Inyectar opciones DC-3 si aplica
     if (state.selectedTemplate === "dc3") {
       const chkRep = document.getElementById("chkRepTrabajadores");
       datos["representante_trabajadores"] =
         chkRep && chkRep.checked
-          ? document.getElementById("inputRepTrabajadores")?.value ||
-            "Representante"
+          ? document.getElementById("inputRepTrabajadores")?.value || "Representante"
           : "";
       datos["firma_trabajadores"] =
         chkRep && chkRep.checked ? firmaTrabData : "";
     }
     return datos;
   });
+}
 
-  // Obtener rango de generación
+function doGenerate(filas) {
   const { start_row, count } = getGenRange();
-
-  // Enviar a generar
   fetch("/api/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -844,15 +824,67 @@ document.getElementById("btnGenerate").addEventListener("click", async () => {
         alert("Error: " + data.error);
         return;
       }
-      // Mostrar progreso
       document.getElementById("step4").style.display = "none";
       document.getElementById("stepProgress").style.display = "block";
       document.getElementById("progressTotal").textContent = data.total;
-      document
-        .getElementById("stepProgress")
-        .scrollIntoView({ behavior: "smooth" });
+      document.getElementById("stepProgress").scrollIntoView({ behavior: "smooth" });
       iniciarProgreso();
     });
+}
+
+// ─── Variables para el modal de errores ───
+let _pendingFirmaLegalData = "";
+let _pendingFirmaTrabData = "";
+
+function closeValidationModal() {
+  document.getElementById("validationModal").style.display = "none";
+}
+
+function generateAll() {
+  closeValidationModal();
+  const filas = buildRows(_pendingFirmaLegalData, _pendingFirmaTrabData, state.excelData.rows);
+  doGenerate(filas);
+}
+
+function generateWithExclusion() {
+  closeValidationModal();
+  const errorIndices = new Set((state.errores || []).map((e) => e.idx - 1));
+  const cleanRows = state.excelData.rows.filter((_, i) => !errorIndices.has(i));
+  const filas = buildRows(_pendingFirmaLegalData, _pendingFirmaTrabData, cleanRows);
+  doGenerate(filas);
+}
+
+// ─── Step 4: Generar ───
+document.getElementById("btnGenerate").addEventListener("click", async () => {
+  const requiredFields = CAMPOS_CERT.filter(
+    (c) => c.required && state.camposDisponibles.includes(c.key),
+  );
+  for (const field of requiredFields) {
+    if (state.mapping[field.key] === undefined) {
+      alert(`Falta mapear: ${field.label}`);
+      return;
+    }
+  }
+
+  const firmaLegalData = await readFileAsDataURL(document.getElementById("fileFirmaLegal"));
+  const firmaTrabData = await readFileAsDataURL(document.getElementById("fileFirmaTrabajadores"));
+
+  _pendingFirmaLegalData = firmaLegalData;
+  _pendingFirmaTrabData = firmaTrabData;
+
+  // Si hay errores de validación, mostrar modal
+  if (state.errores && state.errores.length > 0) {
+    const list = document.getElementById("validationErrorList");
+    list.innerHTML = state.errores
+      .map((e) => `<div style="padding:2px 0"><strong>${e.nombre}</strong>: ${e.errors.join(", ")}</div>`)
+      .join("");
+    document.getElementById("validationModal").style.display = "flex";
+    return;
+  }
+
+  // Sin errores, generar directo
+  const filas = buildRows(firmaLegalData, firmaTrabData, state.excelData.rows);
+  doGenerate(filas);
 });
 
 // ─── Progress SSE ───

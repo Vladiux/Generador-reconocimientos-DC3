@@ -239,6 +239,27 @@
                 </div>
             </div>
 
+            <!-- Modal de errores de validación -->
+            <div class="modal" id="validationModal" style="display: none">
+                <div class="modal-overlay" onclick="closeValidationModal()"></div>
+                <div class="modal-content" style="max-width:520px">
+                    <div class="modal-header">
+                        <h3>⚠️ Errores de validación</h3>
+                        <button class="btn btn-ghost" onclick="closeValidationModal()">✕</button>
+                    </div>
+                    <div class="modal-body" style="padding:14px;font-size:13px">
+                        <p style="margin-bottom:10px;color:#475569">Se detectaron errores en los siguientes registros:</p>
+                        <div id="validationErrorList" style="max-height:200px;overflow-y:auto;margin-bottom:12px;padding:8px 10px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;font-size:12px;color:#7f1d1d"></div>
+                        <p style="font-size:12px;color:#64748b;margin-bottom:14px">Los certificados con errores podrían tener datos inválidos. ¿Cómo deseas continuar?</p>
+                        <div style="display:flex;gap:8px;justify-content:flex-end">
+                            <button class="btn btn-ghost" onclick="closeValidationModal()">Cancelar</button>
+                            <button class="btn btn-secondary" id="btnGenExclude" onclick="generateWithExclusion()">Generar sin errores</button>
+                            <button class="btn btn-primary" id="btnGenAll" onclick="generateAll()">Generar todos</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Step 4: Generar -->
             <section class="step" id="step4" style="display: none">
                 <div class="step-header">
