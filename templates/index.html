@@ -61,21 +61,9 @@
                         <div style="display: flex; flex-wrap: wrap; gap: 6px">
                             <button
                                 class="btn btn-ghost btn-sm"
-                                onclick="descargarPlantilla('dc3')"
+                                onclick="descargarPlantilla('unificada')"
                             >
-                                📋 DC-3
-                            </button>
-                            <button
-                                class="btn btn-ghost btn-sm"
-                                onclick="descargarPlantilla('reconocimiento')"
-                            >
-                                📜 Reconocimiento
-                            </button>
-                            <button
-                                class="btn btn-ghost btn-sm"
-                                onclick="descargarPlantilla('constancia')"
-                            >
-                                📄 Constancia
+                                📋 Descargar plantilla Excel
                             </button>
                         </div>
                     </div>
@@ -368,7 +356,61 @@
                                     "
                                 />
                             </label>
-
+                        </div>
+                        <div
+                            style="
+                                margin-top: 8px;
+                            "
+                        >
+                            <label
+                                style="
+                                    display: flex;
+                                    flex-direction: column;
+                                    font-size: 12px;
+                                    color: #475569;
+                                "
+                            >
+                                Lugar de emisión
+                                <input
+                                    type="text"
+                                    id="cfgLugar"
+                                    value=""
+                                    placeholder="Ej: Pachuca, Hidalgo"
+                                    style="
+                                        margin-top: 3px;
+                                        padding: 6px 8px;
+                                        border: 1px solid #cbd5e1;
+                                        border-radius: 5px;
+                                        font-size: 13px;
+                                    "
+                                />
+                            </label>
+                        </div>
+                        <div
+                            style="
+                                margin-top: 8px;
+                            "
+                        >
+                            <label
+                                style="
+                                    display: flex;
+                                    flex-direction: column;
+                                    font-size: 12px;
+                                    color: #475569;
+                                "
+                            >
+                                Firma del instructor
+                                <input
+                                    type="file"
+                                    id="fileFirmaLegal"
+                                    accept="image/*"
+                                    style="
+                                        margin-top: 3px;
+                                        font-size: 13px;
+                                    "
+                                />
+                                <span id="firmaLegalName" style="font-size:10px;color:#666;margin-top:2px"></span>
+                            </label>
                         </div>
                         <p
                             style="
@@ -377,9 +419,9 @@
                                 margin: 8px 0 0 0;
                             "
                         >
-                            💡 El STPS y el director son fijos para todo el
-                            lote. El cliente final no llena estos datos — solo
-                            tú.
+                            💡 STPS, director y lugar de emisión son fijos para
+                            todo el lote. El lugar solo aplica a Constancias y
+                            Reconocimientos.
                         </p>
                     </details>
 
@@ -398,12 +440,16 @@
                                    style="width:55px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:4px;font-size:13px"
                                    onchange="onGenModeChange()" disabled>
                             <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer">
-                                <input type="radio" name="genMode" value="from" onchange="onGenModeChange()">
-                                Desde fila
+                                <input type="radio" name="genMode" value="list" onchange="onGenModeChange()">
+                                Lista
                             </label>
-                            <input type="number" id="genFromInput" min="1" value="1"
-                                   style="width:55px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:4px;font-size:13px"
+                            <input type="text" id="genListInput" placeholder="ej: 2,3,4,7"
+                                   style="width:120px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:4px;font-size:13px"
                                    onchange="onGenModeChange()" disabled>
+                            <span style="color:#94a3b8;margin:0 2px">|</span>
+                            <label style="font-size:13px;font-weight:500;white-space:nowrap">Nombre:</label>
+                            <input type="text" id="genBatchName" placeholder="ej: Curso DC3 Calidra"
+                                   style="width:180px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:4px;font-size:13px">
                         </div>
                     </div>
 

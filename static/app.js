@@ -14,14 +14,12 @@ const CAMPOS_CERT = [
   { key: "fecha", label: "Fecha de conclusión", required: false },
   { key: "fecha_ini", label: "Fecha inicio (dd/mm/aaaa)", required: false },
   { key: "fecha_fin", label: "Fecha fin (dd/mm/aaaa)", required: false },
-  { key: "calificacion", label: "Calificación", required: false },
   { key: "folio", label: "Folio", required: false },
   { key: "curp", label: "CURP", required: false },
   { key: "rfc", label: "RFC de la empresa", required: false },
   { key: "ocupacion", label: "Ocupación específica", required: false },
   { key: "area_tematica", label: "Área temática del curso", required: false },
   { key: "instructor", label: "Nombre del instructor", required: false },
-  { key: "lugar", label: "Lugar de expedición", required: false },
   { key: "empresa", label: "Empresa / Razón social", required: false },
   { key: "puesto", label: "Puesto del participante", required: false },
   {
@@ -62,6 +60,8 @@ function getAgentConfig() {
     agente_capacitador:
       document.getElementById("cfgAgenteCapacitador")?.value?.trim() ||
       "Ing. Hugo Juárez Vite",
+    lugar:
+      document.getElementById("cfgLugar")?.value?.trim() || "",
   };
 }
 
@@ -600,25 +600,17 @@ function actualizarResumen() {
     validacionHtml += `</div>`;
   }
 
-  // Opciones DC-3: firma instructor + checkbox >50 trabajadores
-  let dc3Options = "";
+  // Opciones DC-3: agente capacitador + checkbox >50 trabajadores
+  let dc3Extra = "";
   if (state.selectedTemplate === "dc3") {
-    dc3Options = `
-        <div class="summary-section" style="margin-top:8px;padding-top:8px;border-top:1px solid #e2e8f0">
+    dc3Extra = `
+        <div class="summary-section" style="margin-top:4px;padding-top:8px;border-top:1px solid #e2e8f0">
             <div class="summary-row">
                 <span class="summary-label">👤 Agente capacitador (STPS)</span>
                 <span class="summary-value">
                     <input type="text" id="cfgAgenteCapacitador" placeholder="Ing. Hugo Juárez Vite"
                            style="border:1px solid #cbd5e1;border-radius:6px;padding:4px 8px;font-size:12px;width:200px"
                            value="">
-                </span>
-            </div>
-            <div class="summary-row">
-                <span class="summary-label">✍️ Firma del instructor</span>
-                <span class="summary-value">
-                    <input type="file" id="fileFirmaLegal" accept="image/*"
-                           style="font-size:11px;width:200px">
-                    <span id="firmaLegalName" style="font-size:10px;color:#666;margin-left:4px"></span>
                 </span>
             </div>
             <div style="border-top:1px solid #e2e8f0;margin:6px 0"></div>
@@ -664,7 +656,7 @@ function actualizarResumen() {
             <span class="summary-value">${Object.keys(state.mapping).length}</span>
         </div>
         ${validacionHtml}
-        ${dc3Options}
+        ${dc3Extra}
     `;
   document.getElementById("genCount").textContent = count;
 }
@@ -680,7 +672,7 @@ function toggleRepTrabajadores(checkbox) {
 function onGenModeChange() {
   const mode = document.querySelector('input[name="genMode"]:checked')?.value;
   document.getElementById("genCountInput").disabled = mode !== "first";
-  document.getElementById("genFromInput").disabled = mode !== "from";
+  document.getElementById("genListInput").disabled = mode !== "list";
   actualizarGenCount();
 }
 
@@ -691,7 +683,6 @@ function getGenRange() {
   const count = parseInt(
     document.getElementById("genCountInput")?.value || "5",
   );
-  const from = parseInt(document.getElementById("genFromInput")?.value || "1");
 
   let start_row = 0;
   let gen_count = 0;
@@ -701,15 +692,20 @@ function getGenRange() {
       start_row = 0;
       gen_count = Math.min(count, total);
       break;
-    case "from":
-      start_row = Math.max(0, from - 1);
-      gen_count = 0;
-      break;
-    default: // all
+    default: // all, list
       start_row = 0;
       gen_count = 0;
   }
   return { start_row, count: gen_count, mode };
+}
+
+function getGenListIndices() {
+  const val = document.getElementById("genListInput")?.value?.trim();
+  if (!val) return [];
+  return val.split(/[,;\s]+/)
+    .map((s) => parseInt(s.trim(), 10))
+    .filter((n) => !isNaN(n) && n > 0)
+    .map((n) => n - 1);
 }
 
 function actualizarGenCount() {
@@ -717,7 +713,7 @@ function actualizarGenCount() {
   const { start_row, count, mode } = getGenRange();
   let show = total;
   if (mode === "first") show = Math.min(count, total);
-  else if (mode === "from") show = total - start_row;
+  else if (mode === "list") show = getGenListIndices().length;
   document.getElementById("genCount").textContent = show;
 }
 
@@ -742,12 +738,17 @@ document.getElementById("btnPreview").addEventListener("click", async () => {
   loading.style.display = "block";
   frame.style.display = "none";
 
-  // Usar primera fila de datos
+  // Usar primera fila de datos + firma subida
   const primeraFila = state.excelData.rows[0];
   const datos = {};
   for (const [campo, colIdx] of Object.entries(state.mapping)) {
     datos[campo] = primeraFila[colIdx] || "";
   }
+
+  const firmaPreview = await readFileAsDataURL(
+    document.getElementById("fileFirmaLegal"),
+  );
+  datos["firma_instructor"] = firmaPreview || "";
 
   try {
     const res = await fetch("/api/preview", {
@@ -812,6 +813,7 @@ function buildRows(firmaLegalData, firmaTrabData, rows) {
 
 function doGenerate(filas) {
   const { start_row, count } = getGenRange();
+  const customName = (document.getElementById("genBatchName")?.value || "").trim();
   fetch("/api/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -823,6 +825,7 @@ function doGenerate(filas) {
       mapeo: state.mapping,
       tmp_path: state.excelData.tmp_path,
       config: getAgentConfig(),
+      custom_name: customName,
     }),
   })
     .then((res) => res.json())
@@ -851,10 +854,16 @@ function closeValidationModal() {
 
 function generateAll() {
   closeValidationModal();
+  let rows = state.excelData.rows;
+  const mode = document.querySelector('input[name="genMode"]:checked')?.value;
+  if (mode === "list") {
+    const indices = getGenListIndices();
+    rows = indices.map((i) => state.excelData.rows[i]).filter((r) => r !== undefined);
+  }
   const filas = buildRows(
     _pendingFirmaLegalData,
     _pendingFirmaTrabData,
-    state.excelData.rows,
+    rows,
   );
   doGenerate(filas);
 }
@@ -862,7 +871,13 @@ function generateAll() {
 function generateWithExclusion() {
   closeValidationModal();
   const errorIndices = new Set((state.errores || []).map((e) => e.idx - 1));
-  const cleanRows = state.excelData.rows.filter((_, i) => !errorIndices.has(i));
+  let rows = state.excelData.rows;
+  const mode = document.querySelector('input[name="genMode"]:checked')?.value;
+  if (mode === "list") {
+    const indices = getGenListIndices();
+    rows = indices.map((i) => state.excelData.rows[i]).filter((r) => r !== undefined);
+  }
+  const cleanRows = rows.filter((_, i) => !errorIndices.has(i));
   const filas = buildRows(
     _pendingFirmaLegalData,
     _pendingFirmaTrabData,

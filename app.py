@@ -107,50 +107,26 @@ def get_plantilla(nombre):
     return jsonify({"html": html})
 
 
-# ─── Plantillas Excel por tipo de documento ───
+# ─── Plantilla Excel unificada ───
+# Un solo Excel con todos los campos que cualquier tipo de documento pueda necesitar.
 PLANTILLAS_EXCEL = {
-    "reconocimiento": {
-        "nombre": "Plantilla Reconocimiento",
+    "unificada": {
+        "nombre": "Plantilla Unificada",
         "headers": [
-            "Nombre Completo",  # Apellido paterno, apellido materno, nombre(s)
+            "Nombre Completo",
+            "CURP",
+            "Puesto",
+            "Empresa (Razón Social)",
+            "RFC (de la Empresa)",
+            "Representante Legal",
             "Curso",
             "Duracion (hrs)",
-            "Fecha",
+            "Fecha Inicio",
+            "Fecha Fin",
+            "Area Tematica",
+            "Ocupacion",
             "Instructor",
-            "Lugar",
-            "Folio",  # Opcional — si va vacío se genera automáticamente
-        ],
-        "ejemplo": [
-            "López Hernández María Fernanda",
-            "Seguridad Industrial y Protección Civil",
-            "40",
-            "15/06/2026",
-            "Ing. Roberto Martínez",
-            "Pachuca, Hidalgo",
-            "",  # Folio en blanco → auto-genera
-        ],
-    },
-    "dc3": {
-        "nombre": "Plantilla DC-3",
-        # Orden basado en "quién llena cada campo":
-        # 🟡 = lo llena el cliente del cliente (datos del participante + empresa)
-        # 🟢 = lo llena AGASI (datos del curso + control interno)
-        # Todos los amarillos van juntos primero, sin intercalar.
-        "headers": [
-            "Nombre",  # 🟡 Apellido paterno, apellido materno, nombre(s)
-            "CURP",  # 🟡 18 caracteres
-            "Puesto",  # 🟡 Puesto del participante en la empresa
-            "Empresa (Razón Social)",  # 🟡 Razón social completa
-            "RFC (de la Empresa)",  # 🟡 12 caracteres - RFC de la empresa
-            "Representante Legal",  # 🟡 Quien firma como representante de la empresa
-            "Curso",  # 🟢 Nombre del curso
-            "Duracion (hrs)",  # 🟢 Horas
-            "Fecha Inicio",  # 🟢 dd/mm/aaaa
-            "Fecha Fin",  # 🟢 dd/mm/aaaa
-            "Area Tematica",  # 🟢 Código + nombre, ej: "6000 Seguridad"
-            "Ocupacion",  # 🟢 Catálogo Nacional de Ocupaciones
-            "Instructor",  # 🟢 Nombre del instructor
-            "Folio",  # 🟢 Opcional — si va vacío se genera automáticamente
+            "Folio",
         ],
         "ejemplo": [
             "López Hernández María Fernanda",
@@ -158,7 +134,7 @@ PLANTILLAS_EXCEL = {
             "Supervisor",
             "Industrias Peoles",
             "IPE850101AB1",
-            "Ing. Alejandro García Salinas",  # Representante Legal
+            "Ing. Alejandro García Salinas",
             "Seguridad Industrial y Protección Civil",
             "40",
             "01/06/2026",
@@ -166,28 +142,7 @@ PLANTILLAS_EXCEL = {
             "6000 Seguridad",
             "09.4 Protección",
             "Ing. Roberto Martínez",
-            "",  # Folio en blanco → auto-genera
-        ],
-        # Columnas que se rellenan en amarillo en la plantilla (las primeras 6)
-        "columnas_amarillas": 6,
-    },
-    "constancia": {
-        "nombre": "Plantilla Constancia",
-        "headers": [
-            "Nombre Completo",  # Apellido paterno, apellido materno, nombre(s)
-            "Curso",
-            "Duracion (hrs)",
-            "Fecha",
-            "Instructor",
-            "Folio",  # Opcional — si va vacío se genera automáticamente
-        ],
-        "ejemplo": [
-            "Juan Pérez García",
-            "Primeros Auxilios y RCP",
-            "16",
-            "17/06/2026",
-            "Dra. Ana Ruiz",
-            "",  # Folio en blanco → auto-genera
+            "",
         ],
     },
 }
@@ -195,7 +150,7 @@ PLANTILLAS_EXCEL = {
 
 @app.route("/api/plantilla-excel/<tipo>")
 def download_plantilla_excel(tipo):
-    """Genera y descarga una plantilla Excel con headers y fila de ejemplo."""
+    """Genera y descarga la plantilla Excel unificada."""
     from io import BytesIO
 
     from openpyxl import Workbook
@@ -203,14 +158,7 @@ def download_plantilla_excel(tipo):
     from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
     from openpyxl.utils import get_column_letter
 
-    if tipo not in PLANTILLAS_EXCEL:
-        return jsonify(
-            {
-                "error": f"Tipo '{tipo}' no válido. Disponibles: {list(PLANTILLAS_EXCEL.keys())}"
-            }
-        ), 404
-
-    info = PLANTILLAS_EXCEL[tipo]
+    info = PLANTILLAS_EXCEL["unificada"]
     wb = Workbook()
     ws = wb.active
     ws.title = info["nombre"][:30]
@@ -266,66 +214,37 @@ def download_plantilla_excel(tipo):
     header_row = 4
     example_row = 5
 
-    # ─── Texto de instrucciones en formato lista ───
-    if tipo == "dc3":
-        instr_lines = [
-            "INSTRUCCIONES:",
-            "• Complete los datos de los participantes.",
-            "• El campo NOMBRE debe ir como: Apellido Paterno + Apellido Materno + Nombre(s)   Ej: López Hernández María Fernanda",
-            "• La fila de ejemplo debe borrarse antes de procesar.",
-            "• La columna FOLIO es opcional — si la deja vacía, el sistema asigna una automáticamente.",
-            "",
-            "Para DC-3:",
-            "• CURP debe tener exactamente 18 caracteres.",
-            "• El RFC es el de la EMPRESA (no del participante). Persona Moral: 12 caracteres · Persona Física: 13 caracteres.",
-            "• En EMPRESA escriba la Razón Social completa.",
-            "• En ÁREA TEMÁTICA escriba: CÓDIGO + NOMBRE   Ej: 6000 Seguridad",
-            "• REPRESENTANTE LEGAL puede quedar vacío — si lo deja vacío, se usa el valor por defecto configurado en el sistema.",
-            "• Escribe la fecha con formato DD/MM/AAAA",
-            "",
-            "─── ¿QUIÉN LLENA CADA CAMPO? ───",
-            "🟡  AMARILLO  →  Los llena el CLIENTE (usted):",
-            "       Nombre, CURP, Puesto, Empresa, RFC, Representante Legal",
-            "⬜  BLANCO    →  Los llena AGASI:",
-            "       Curso, Duracion, Fechas, Area Tematica, Ocupacion, Instructor, Folio",
-        ]
-    elif tipo == "reconocimiento":
-        instr_lines = [
-            "INSTRUCCIONES:",
-            "• Complete los datos de los participantes.",
-            "• El campo NOMBRE debe ir como: Apellido Paterno + Apellido Materno + Nombre(s)   Ej: López Hernández María Fernanda",
-            "• La fila de ejemplo debe borrarse antes de procesar.",
-            "• La columna FOLIO es opcional — si la deja vacía, el sistema asigna una automáticamente.",
-            "",
-            "─── ¿QUIÉN LLENA CADA CAMPO? ───",
-            "Todos los campos los llena el CLIENTE (usted).",
-        ]
-    elif tipo == "constancia":
-        instr_lines = [
-            "INSTRUCCIONES:",
-            "• Complete los datos de los participantes.",
-            "• El campo NOMBRE debe ir como: Apellido Paterno + Apellido Materno + Nombre(s)   Ej: Juan Pérez García",
-            "• La fila de ejemplo debe borrarse antes de procesar.",
-            "• La columna FOLIO es opcional — si la deja vacía, el sistema asigna una automáticamente.",
-            "",
-            "─── ¿QUIÉN LLENA CADA CAMPO? ───",
-            "Todos los campos los llena el CLIENTE (usted).",
-        ]
-    else:
-        instr_lines = ["INSTRUCCIONES: Complete los datos de los participantes."]
+    # ─── Instrucciones ───
+    instr_lines = [
+        "INSTRUCCIONES:",
+        "• Complete los datos de los participantes.",
+        "• El campo NOMBRE debe ir como: Apellido Paterno + Apellido Materno + Nombre(s)   Ej: López Hernández María Fernanda",
+        "• La fila de ejemplo debe borrarse antes de procesar.",
+        "• La columna FOLIO es opcional — si la deja vacía, el sistema asigna una automáticamente.",
+        "",
+        "• CURP debe tener exactamente 18 caracteres.",
+        "• RFC es el de la EMPRESA (no del participante). Persona Moral: 12 caracteres · Persona Física: 13.",
+        "• En EMPRESA escriba la Razón Social completa.",
+        "• En ÁREA TEMÁTICA escriba: CÓDIGO + NOMBRE   Ej: 6000 Seguridad",
+        "• Escriba la fecha con formato DD/MM/AAAA.",
+        "",
+        "─── ¿QUIÉN LLENA CADA CAMPO? ───",
+        "🟡  AMARILLO  →  Los llena el CLIENTE (usted):",
+        "       Nombre Completo, CURP, Puesto, Empresa, RFC, Representante Legal",
+        "⬜  BLANCO    →  Los llena AGASI:",
+        "       Curso, Duracion, Fechas, Area Tematica, Ocupacion, Instructor, Folio",
+    ]
 
-    # ─── Calcular el número de filas para instrucciones dinámicamente ───
-    # DC-3 con la sección "¿quién llena cada campo?" tiene ~18 líneas.
-    # Como las instrucciones ahora empiezan en columna B (no E), hay mucho
-    # más ancho para el texto → caben más líneas por fila.
+    instr_lines.insert(0, "💡 Si no ves todo el texto, haz más grande la celda para ver las instrucciones completas.")
+    instr_lines.insert(1, "")
+
     n_lines = len(instr_lines)
-    lines_per_row = 6  # ~6 líneas a 9pt caben en una fila (con instrucciones en col B)
-    n_instr_rows = max(2, -(-n_lines // lines_per_row))  # ceil division, mínimo 2
+    lines_per_row = 6
+    n_instr_rows = max(2, -(-n_lines // lines_per_row))
     instr_end_row = instr_start_row + n_instr_rows - 1
     header_row = instr_end_row + 1
     example_row = header_row + 1
 
-    # Ahora sí, mergear las celdas con el rango correcto
     ws.merge_cells(
         start_row=instr_start_row,
         start_column=instr_start_col,
@@ -333,28 +252,15 @@ def download_plantilla_excel(tipo):
         end_column=len(info["headers"]),
     )
 
-    # ─── Leyenda al inicio de las instrucciones (misma celda mergeada) ───
-    # La leyenda va como primera línea, antes de "INSTRUCCIONES:", en la misma
-    # celda mergeada. Una sola línea, no crea celdas nuevas.
-    if tipo in ("dc3", "reconocimiento", "constancia"):
-        # Solo la agregamos si no está ya al inicio
-        if not instr_lines or not instr_lines[0].startswith("💡"):
-            instr_lines.insert(
-                0,
-                "💡 Si no ves todo el texto, haz más grande la celda para ver todas las instrucciones completas.",
-            )
-            instr_lines.insert(1, "")  # línea en blanco para separar
-
     instr_text = "\n".join(instr_lines)
     instr_cell = ws.cell(row=instr_start_row, column=instr_start_col, value=instr_text)
-    # Instrucciones en NEGRITAS para que se lean bien (no en itálica)
     instr_cell.font = Font(name="Arial", size=9, bold=True, color="1F2937")
     instr_cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
     for r in range(instr_start_row, instr_end_row + 1):
         ws.row_dimensions[r].height = 22
 
-    # ─── Headers (con color amarillo en las primeras N columnas si aplica) ───
-    n_amarillas = info.get("columnas_amarillas", 0) if tipo == "dc3" else 0
+    # Primeras 6 columnas en amarillo (datos del cliente)
+    n_amarillas = 6
 
     # Si hay logo, asegurar que la fila del título tenga buena altura
     if has_logo:
@@ -639,6 +545,12 @@ def generate_batch():
     # Rango opcional: start_row, count
     start_row = data.get("start_row", 0)
     count = data.get("count", 0)  # 0 = todas desde start_row
+    raw_name = data.get("custom_name", "").strip()
+    if raw_name:
+        safe_name = "".join(c for c in raw_name if c.isalnum() or c in " _-.,áéíóúüñÁÉÍÓÚÜÑ")
+        custom_name = safe_name.strip() or f"lote_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    else:
+        custom_name = f"lote_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
     if not plantilla_nombre or not filas:
         return jsonify({"error": "Faltan datos: plantilla y filas"}), 400
@@ -667,12 +579,13 @@ def generate_batch():
         "error": "",
         "failed_rows": [],
         "start_row": start_row,
+        "custom_name": custom_name,
     }
 
     # Thread en background
     t = threading.Thread(
         target=_run_batch,
-        args=(plantilla_nombre, filas_con_config, mapeo, start_row),
+        args=(plantilla_nombre, filas_con_config, mapeo, start_row, custom_name),
         daemon=True,
     )
     t.start()
@@ -711,10 +624,14 @@ def download_zip():
         for f in sorted(Path(output_dir).glob("*.pdf")):
             zf.write(f, f.name)
 
+    batch_name = batch_state.get("custom_name", "")
+    if not batch_name:
+        batch_name = f"certificados_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
     return send_file(
         zip_path.name,
         mimetype="application/zip",
-        download_name=f"certificados_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
+        download_name=f"{batch_name}.zip",
     )
 
 
@@ -851,6 +768,9 @@ def _generar_pdf_playwright(html_content, output_path, single_page=False):
         if not src_match:
             return full_tag
         src = src_match.group(1)
+        # Si ya es base64 inline, no tocar
+        if src.startswith("data:"):
+            return full_tag
         # Determinar archivo físico
         if src.startswith("firmas/"):
             filepath = firmas_dir / src.replace("firmas/", "", 1)
@@ -1024,17 +944,18 @@ def _generar_pdf_playwright(html_content, output_path, single_page=False):
         browser.close()
 
 
-def _run_batch(plantilla_nombre, filas, mapeo, start_row=0):
+def _run_batch(plantilla_nombre, filas, mapeo, start_row=0, custom_name=""):
     """Ejecuta la generación masiva en background.
     filas: lista de dicts con los datos ya mapeados {campo: valor}
     start_row: índice original (para reportar errores con el número real)
+    custom_name: nombre de carpeta para el lote
     """
     import traceback
 
     global batch_state
 
     output_dir = (
-        RUNTIME_DIR / "output" / f"batch_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        RUNTIME_DIR / "DC-3 y RECONOCIMIENTOS AGASI" / custom_name
     )
     output_dir.mkdir(parents=True, exist_ok=True)
     batch_state["output_dir"] = str(output_dir)
@@ -1284,8 +1205,10 @@ def main():
     print(f"  Ctrl+C para cerrar")
     print(f"{'=' * 50}\n")
 
-    # Abrir navegador automáticamente
-    threading.Timer(0.5, lambda: webbrowser.open(url)).start()
+    # Abrir navegador automáticamente (solo una vez, aunque el reloader de Flask
+    # reinicie el proceso)
+    if not os.environ.get("WERKZEUG_RUN_MAIN"):
+        threading.Timer(0.5, lambda: webbrowser.open(url)).start()
 
     # En binario empaquetado (PyInstaller) no usar debug/reloader: el reloader
     # intenta reimportar el módulo principal y se confunde con sys.frozen.

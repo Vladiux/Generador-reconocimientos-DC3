@@ -1,179 +1,179 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
-<head>
-<meta charset="UTF-8">
-<style>
-  @page {
-    size: A4 portrait;
-    margin: 0;
-  }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    width: 210mm;
-    height: 297mm;
-    font-family: 'Helvetica', 'Arial', sans-serif;
-    background: #fff;
-    position: relative;
-    display: flex;
-    flex-direction: column;
-  }
+    <head>
+        <meta charset="UTF-8" />
+        <style>
+            @page {
+                size: 215.9mm 279.4mm;
+                margin: 0;
+            }
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            body {
+                width: 215.9mm;
+                height: 279.4mm;
+                font-family: "Helvetica", "Arial", sans-serif;
+                background: #fff;
+                position: relative;
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+            }
 
-  /* ─── Banda superior ─── */
-  .banda-superior {
-    background: linear-gradient(135deg, #1a4786 0%, #2563eb 100%);
-    color: #fff;
-    padding: 10mm 15mm;
-    display: flex;
-    align-items: center;
-    gap: 8mm;
-  }
-  .banda-logo {
-    font-size: 20pt;
-    font-weight: bold;
-    letter-spacing: 3px;
-  }
-  .banda-info {
-    flex: 1;
-  }
-  .banda-info-titulo {
-    font-size: 11pt;
-    font-weight: 600;
-  }
-  .banda-info-sub {
-    font-size: 8pt;
-    opacity: 0.85;
-    margin-top: 1mm;
-  }
+            .banda-superior {
+                background: linear-gradient(135deg, #1a4786 0%, #2563eb 100%);
+                color: #fff;
+                padding: 10mm 15mm;
+                display: flex;
+                align-items: center;
+                gap: 8mm;
+                flex-shrink: 0;
+            }
+            .banda-logo {
+                height: 16mm;
+                width: auto;
+            }
+            .banda-info {
+                flex: 1;
+            }
+            .banda-info-titulo {
+                font-size: 11pt;
+                font-weight: 600;
+            }
+            .banda-info-sub {
+                font-size: 8pt;
+                opacity: 0.85;
+                margin-top: 1mm;
+            }
 
-  /* ─── Cuerpo ─── */
-  .cuerpo {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 15mm 20mm;
-    text-align: center;
-    gap: 6mm;
-  }
-  .titulo {
-    font-size: 24pt;
-    font-weight: bold;
-    color: #1a4786;
-    letter-spacing: 4px;
-  }
-  .texto-presentacion {
-    font-size: 12pt;
-    color: #555;
-    max-width: 75%;
-    line-height: 1.6;
-  }
-  .nombre {
-    font-size: 26pt;
-    font-weight: bold;
-    color: #1a1a2e;
-    padding: 2mm 0;
-    border-bottom: 3px solid #2563eb;
-    margin: 4mm 0;
-  }
-  .curso {
-    font-size: 16pt;
-    font-weight: 600;
-    color: #1a4786;
-  }
-  .detalles {
-    font-size: 11pt;
-    color: #444;
-    line-height: 1.8;
-  }
-  .detalles strong {
-    color: #1a4786;
-  }
+            .cuerpo {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                padding: 15mm 20mm 8mm;
+                text-align: center;
+                gap: 5mm;
+            }
+            .titulo {
+                font-size: 24pt;
+                font-weight: bold;
+                color: #1a4786;
+                letter-spacing: 4px;
+            }
+            .texto-presentacion {
+                font-size: 12pt;
+                color: #555;
+                max-width: 75%;
+                line-height: 1.6;
+            }
+            .nombre {
+                font-size: 26pt;
+                font-weight: bold;
+                color: #1a1a2e;
+                padding: 2mm 0;
+                border-bottom: 3px solid #2563eb;
+                margin: 3mm 0;
+            }
+            .curso {
+                font-size: 16pt;
+                font-weight: 600;
+                color: #1a4786;
+            }
+            .detalles {
+                font-size: 11pt;
+                color: #444;
+                line-height: 1.8;
+            }
+            .detalles strong {
+                color: #1a4786;
+            }
 
-  /* ─── Banda inferior con firmas ─── */
-  .banda-inferior {
-    background: #f8fafc;
-    border-top: 2px solid #1a4786;
-    padding: 8mm 15mm 4mm 15mm;
-    display: flex;
-    justify-content: center;
-  }
-  .firma {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1mm;
-    flex: 1;
-  }
-  .firma-img {
-    height: 18mm;
-    object-fit: contain;
-    margin-bottom: 1mm;
-    opacity: 0.9;
-  }
-  .firma-linea {
-    width: 50mm;
-    border-top: 1px solid #333;
-    padding-top: 1mm;
-  }
-  .firma-nombre {
-    font-size: 9pt;
-    font-weight: bold;
-    color: #333;
-  }
-  .firma-puesto {
-    font-size: 7pt;
-    color: #666;
-  }
+            .firma-area {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 1mm;
+                padding: 6mm 15mm 10mm;
+                flex-shrink: 0;
+            }
+            .firma-linea {
+                width: 55mm;
+                border-top: 1.5px solid #333;
+            }
+            .firma-img {
+                height: 28mm;
+                object-fit: contain;
+                opacity: 0.9;
+                max-width: 100%;
+            }
+            .firma-nombre {
+                font-size: 10pt;
+                font-weight: bold;
+                color: #333;
+            }
+            .firma-puesto {
+                font-size: 8pt;
+                color: #666;
+            }
 
-  /* ─── Folio ─── */
-  .folio {
-    position: absolute;
-    top: 10mm;
-    right: 15mm;
-    font-size: 9pt;
-    color: rgba(255,255,255,0.8);
-    font-weight: 600;
-  }
-</style>
-</head>
-<body>
-  <!-- Banda superior -->
-  <div class="banda-superior">
-    <div class="banda-logo">AGASI</div>
-    <div class="banda-info">
-      <div class="banda-info-titulo">CONSTANCIA DE CAPACITACIÓN</div>
-      <div class="banda-info-sub">Asesoría, Gestión Ambiental y Servicios Industriales</div>
-    </div>
-  </div>
-  <div class="folio">Folio: {{folio}}</div>
+            .sello {
+                position: absolute;
+                top: 45mm;
+                right: 10mm;
+                width: 50mm;
+                opacity: 0.9;
+                pointer-events: none;
+                z-index: 1;
+            }
 
-  <!-- Cuerpo -->
-  <div class="cuerpo">
-    <div class="titulo">CONSTANCIA</div>
-    <div class="texto-presentacion">
-      Se hace constar que:
-    </div>
-    <div class="nombre">{{nombre}}</div>
-    <div class="texto-presentacion">
-      Ha concluido y aprobado el curso de capacitación:
-    </div>
-    <div class="curso">{{curso}}</div>
-    <div class="detalles">
-      Con una duración de <strong>{{duracion}} horas</strong><br>
-      Obteniendo calificación final de <strong>{{calificacion}}</strong><br>
-      Impartido en {{lugar}} el día {{fecha}}
-    </div>
-  </div>
+            .folio {
+                position: absolute;
+                top: 10mm;
+                right: 15mm;
+                font-size: 9pt;
+                color: rgba(255, 255, 255, 0.8);
+                font-weight: 600;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="banda-superior">
+            <img class="banda-logo" src="assets/AGASI.png" alt="AGASI" />
+            <div class="banda-info">
+                <div class="banda-info-titulo">CONSTANCIA DE PARTICIPACIÓN</div>
+            </div>
+        </div>
+        <div class="folio">Folio: {{folio}}</div>
 
-  <!-- Banda inferior con firma del agente capacitador -->
-  <div class="banda-inferior">
-    <div class="firma">
-      <img class="firma-img" src="{{firma_instructor}}" alt="" onerror="this.style.display='none'">
-      <div class="firma-linea"></div>
-        <div class="firma-nombre">{{director_nombre}}</div>
-        <div class="firma-puesto">{{director_puesto}}</div>
-    </div>
-  </div>
-</body>
+        <img class="sello" src="assets/sello_laureles.png" alt="" />
+
+        <div class="cuerpo">
+            <div class="titulo">CONSTANCIA</div>
+            <div class="texto-presentacion">Se hace constar que:</div>
+            <div class="nombre">{{nombre}}</div>
+            <div class="texto-presentacion">Ha participado en:</div>
+            <div class="curso">{{curso}}</div>
+            <div class="detalles">
+                Con una duración de <strong>{{duracion}} horas</strong><br />
+                Impartido en {{lugar}} el día {{fecha_fin}}
+            </div>
+
+            <div class="firma-area">
+                <img
+                    class="firma-img"
+                    src="{{firma_instructor}}"
+                    alt=""
+                    onerror="this.style.display = 'none'"
+                />
+                <div class="firma-nombre">{{director_nombre}}</div>
+                <div class="firma-linea"></div>
+                <div class="firma-puesto">{{director_puesto}}</div>
+            </div>
+        </div>
+    </body>
 </html>

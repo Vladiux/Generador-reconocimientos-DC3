@@ -704,4 +704,16 @@ git push origin v1.0.0
 - **Regenerar iconos:** ver bloque en sección "Iconos"
 - **Cambiar versión del build:** solo crea un nuevo tag y push
 
+## 📐 Dimensiones de página (Carta)
+
+Todos los documentos usan papel **Carta** (215.9mm × 279.4mm):
+
+| Plantilla | Orientación | `@page { size: }` | `body { width/height }` |
+|---|---|---|---|
+| DC-3 | Vertical | `215.9mm 279.4mm` | — (no usa body width/height fijo) |
+| Constancia | Vertical | `215.9mm 279.4mm` | `width: 215.9mm; height: 279.4mm` |
+| Reconocimientos (5) | Apaisado | `279.4mm 215.9mm` | `width: 279.4mm; height: 215.9mm` |
+
+Para cambiar a **A4** (210mm × 297mm), modifica `@page { size: ... }` y el `body { width/height }` en cada plantilla HTML de `plantillas/`.
+
 ¿Dudas? Revisa el log del build (en Actions si es GitHub, o en la terminal si es local). El error usualmente dice exactamente qué falta.
